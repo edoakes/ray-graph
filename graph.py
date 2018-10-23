@@ -1,6 +1,7 @@
 class RayGraphNode(object):
     def __init__(self, name):
         self.name = name
+        self.deps = []
 
 class Object(RayGraphNode):
     pass
