@@ -64,12 +64,7 @@ class Stream(object):
         i = np.random.randint(0, len(self.elements))
         return self.elements[i]
 
-
-if __name__ == "__main__":
-    args = parser.parse_args()
-
-    ray.init()
-
+def main(args):
     # Create one streaming source of articles per mapper.
     directory = os.path.dirname(os.path.realpath(__file__))
     streams = []
@@ -102,3 +97,8 @@ if __name__ == "__main__":
         for word in most_frequent_words:
             print("  ", word, wordcounts[word])
         article_index += 1
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    ray.init()
+    main(args)
