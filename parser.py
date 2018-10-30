@@ -59,9 +59,15 @@ class ActorSubgraphParser(GraphParser):
     Returns a dictionary of methods to graphs.
     """
 
+    def visit_FunctionDef(self, node):
+        pass
+
     # Entrypoint.
     def visit_ClassDef(self, node):
-        pass
+        self.functions = {}
+        for node in body:
+            self.visit(node)
+        return self.functions
 
 class GlobalGraphParser(GraphParser):
     """
