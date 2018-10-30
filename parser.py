@@ -65,8 +65,8 @@ class ActorSubgraphParser(GraphParser):
     # Entrypoint.
     def visit_ClassDef(self, node):
         self.functions = {}
-        for node in body:
-            self.visit(node)
+        for n in node.body:
+            self.visit(n)
         return self.functions
 
 class GlobalGraphParser(GraphParser):
@@ -94,10 +94,10 @@ class GlobalGraphParser(GraphParser):
 
     # Entrypoint.
     def visit_Module(self, node):
-        for name,node in self.tasks.items():
-            self.task_graphs[name] = self.function_parser.visit(node)
-        for name,node in self.actors.items():
-            self.actor_subgraphs[name] = self.actor_parser.visit(node)
+        for name,n in self.tasks.items():
+            self.task_graphs[name] = self.function_parser.visit(n)
+        for name,n in self.actors.items():
+            self.actor_subgraphs[name] = self.actor_parser.visit(n)
         for n in node.body:
             self.visit(n)
 
