@@ -62,20 +62,17 @@ if __name__ == '__main__':
             num_cpus=NUM_CPUS
             )
 
-    dependencies = generate_dependencies.remote(args.data_size)
-    for i in range(args.num_nodes):
-        for j in range(NUM_CPUS):
-            warmup.remote(dependencies)
+    #for i in range(args.num_nodes):
+    #    for j in range(NUM_CPUS):
+    #        warmup.remote(dependencies)
     reducers = [Reducer.remote(i) for i in range(args.num_reducers)]
+    dependencies = generate_dependencies.remote(args.data_size)
 
     for _ in range(args.num_iterations):
         # Submit map tasks.
         map_ins = [dependencies for _ in range(args.num_nodes)]
-        for i in range(args.num_maps):
-            map_outs = []
-            for j in range(args.num_nodes):
-                map_outs.append(map_step.remote(map_ins[j]))
-            map_ins = map_outs
+        #for i in range(args.num_maps):
+        map_ins = [map_step.remote(map_in) for map_in in map_ins]
 
         # Shuffle data and submit reduce tasks.
         shuffled = [shuffle.remote(len(reducers), map_in) for map_in in map_ins]
