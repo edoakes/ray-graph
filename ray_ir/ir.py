@@ -1,4 +1,19 @@
-class Broadcast(object):
+import uuid
+
+nodes = []
+
+class RayIRNode(object):
+    def __init__(self):
+        self.id = uuid.uuid4()
+        nodes.append(self)
+
+    def short_id(self):
+        return str(self.id)[:8]
+
+    def __repr__(self):
+        return self.__str__()
+
+class Broadcast(RayIRNode):
     """
     Params: a task, the number to broadcast, and args to the task
     Returns: a list of objects
@@ -10,7 +25,12 @@ class Broadcast(object):
         self.n = n
         self.args = args
 
-class Map(object):
+        super(Broadcast, self).__init__()
+
+    def __str__(self):
+        return 'Broadcast(%s): %s' % (self.task, self.short_id())
+
+class Map(RayIRNode):
     """
     Params: a task, list of objects, and args to each task
     Returns: a list of objects
@@ -20,7 +40,12 @@ class Map(object):
         self.objects = objects
         self.args = args
 
-class InitActors(object):
+        super(Map, self).__init__()
+
+    def __str__(self):
+        return 'Map(%s): %s' % (self.task, self.short_id())
+
+class InitActors(RayIRNode):
     """
     Params: an actor class, the number to init, and args to each
     Returns: a list of actors
@@ -30,7 +55,12 @@ class InitActors(object):
         self.n = n
         self.args = args
 
-class MapActors(object):
+        super(InitActors, self).__init__()
+
+    def __str__(self):
+        return 'InitActors(%s): %s' % (self.actor, self.short_id())
+
+class MapActors(RayIRNode):
     """
     Params: a task, list of actors, a list of objects, and args to each task
     Returns: a list of futures (possibly null)
@@ -40,3 +70,8 @@ class MapActors(object):
         self.actors = actors
         self.objects = objects
         self.args = args
+
+        super(MapActors, self).__init__()
+
+    def __str__(self):
+        return 'MapActors(%s): %s' % (self.task, self.short_id())

@@ -1,12 +1,14 @@
-import argparse
-import numpy as np
+import os
+import sys
 import ray
 import time
+import argparse
+import numpy as np
 
-from ir import *
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
+from ray_ir import *
 
 NUM_CPUS = 4
-
 
 def get_partition(index, element, num_reducers):
     return index % num_reducers
@@ -66,16 +68,18 @@ if __name__ == '__main__':
     #for i in range(args.num_nodes):
     #    for j in range(NUM_CPUS):
     #        warmup.remote(dependencies)
-    reducers = InitActors(Reducer, args.num_reducers)
-    dependencies = Broadcast(generate_dependencies, (args.data_size,))
+    reducers = InitActors('Reducer', args.num_reducers)
+    dependencies = Broadcast('generate_dependencies', (args.data_size,))
 
     for _ in range(args.num_iterations):
         # Submit map tasks.
-        map_ins = Map(map_step, dependencies)
+        map_ins = Map('map_step', dependencies)
 
         # Shuffle data and submit reduce tasks.
-        shuffled = Map(shuffle, map_ins, (len(reducers),))
-        MapActors(reduce, reducers, shuffled)
+        shuffled = Map('shuffle', map_ins, (args.num_reducers,))
+        MapActors('reduce', reducers, shuffled)
 
         time.sleep(0.1)
-    print(ray.get([reducer.get_sum.remote() for reducer in reducers]))
+    for node in ir.nodes:
+        print(node)
+    #print(ray.get([reducer.get_sum.remote() for reducer in reducers]))
