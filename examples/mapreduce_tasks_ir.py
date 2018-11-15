@@ -65,21 +65,27 @@ if __name__ == '__main__':
             num_cpus=NUM_CPUS
             )
 
+    reducer_args = [(i,) for i in range(args.num_reducers)]
+    reducers = InitActors(Reducer, args.num_reducers, reducer_args)
+    dependencies = Broadcast(generate_dependencies, args.num_nodes, args.data_size)
+
     #for i in range(args.num_nodes):
     #    for j in range(NUM_CPUS):
-    #        warmup.remote(dependencies)
-    reducers = InitActors('Reducer', args.num_reducers)
-    dependencies = Broadcast('generate_dependencies', (args.data_size,))
+    #        Map(warmup, dependencies)
 
+    map_ins = Map(map_step, dependencies)
     for _ in range(args.num_iterations):
         # Submit map tasks.
-        map_ins = Map('map_step', dependencies)
+        for _ in range(args.num_maps):
+            map_ins = Map(map_step, map_ins)
 
         # Shuffle data and submit reduce tasks.
-        shuffled = Map('shuffle', map_ins, (args.num_reducers,))
+        shuffle_args = [(args.num_reducers,) for _ in range(args.num_nodes)]
+        shuffled = Map(shuffle, map_ins, shuffle_args)
         MapActors('reduce', reducers, shuffled)
 
         time.sleep(0.1)
     for node in ir.nodes:
         print(node)
-    #print(ray.get([reducer.get_sum.remote() for reducer in reducers]))
+    results = ir.run()
+    print(ray.get([reducer.get_sum.remote() for reducer in results[reducers.id]]))
