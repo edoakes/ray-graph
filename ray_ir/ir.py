@@ -102,16 +102,20 @@ class MapActors(RayIRNode):
     Params: a task, list of actors, a list of objects, and args (tuples) to each task
     Returns: a list of futures (possibly null)
     """
-    def __init__(self, task, actors, objects, args=None):
+    def __init__(self, task, actors, objects, args=None, pairwise=False):
         super(MapActors, self).__init__()
         self.task = task
         self.actors = actors
         self.objects = objects
+        self.pairwise = pairwise
         if args is None:
             args = [[] for _ in range(len(actors))]
-        elif len(args) != n:
+        elif len(args) != len(actors):
             raise ValueError('Length of args (%d) must match actors (%d)'
                              % (len(args), len(actors)))
+        elif pairwise and len(objects) != len(actors):
+            raise ValueError('Length of objects (%d) must match actors (%d)'
+                             % (len(objects), len(actors)))
         self.args = args
 
     def eval(self):
@@ -121,9 +125,10 @@ class MapActors(RayIRNode):
 
             print('Evaluating: %s' % self)
             self.result = []
-            for k,actor in enumerate(actors):
+            for i,actor in enumerate(actors):
                 task = getattr(actor, self.task)
-                self.result.append(task.remote(*(self.args[k] + objects)))
+                objs = objects[i] if self.pairwise else objects
+                self.result.append(task.remote(*(self.args[i] + objects)))
 
         return self.result
 
