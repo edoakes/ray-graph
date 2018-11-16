@@ -81,9 +81,8 @@ if __name__ == '__main__':
         # Shuffle data and submit reduce tasks.
         shuffle_args = [[args.num_reducers] for _ in range(args.num_nodes)]
         shuffled = Map(shuffle, map_ins, shuffle_args)
-        MapActors('reduce', reducers, shuffled)
+        MapActors('reduce', reducers, shuffled).eval()
 
         time.sleep(0.1)
 
-    results = ir.run()
-    print(ray.get([reducer.get_sum.remote() for reducer in results[reducers.id]]))
+    print(ray.get([reducer.get_sum.remote() for reducer in reducers.eval()]))

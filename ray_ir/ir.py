@@ -1,17 +1,9 @@
 import uuid
-nodes = []
-
-def run():
-    results = {}
-    for node in nodes:
-        print(node)
-        node.run(results)
-    return results
 
 class RayIRNode(object):
     def __init__(self):
+        self.result = None
         self.id = uuid.uuid4()
-        nodes.append(self)
 
     def short_id(self):
         return str(self.id)[:8]
@@ -25,14 +17,15 @@ class Broadcast(RayIRNode):
     Returns: a list of objects
     """
     def __init__(self, task, n, *args):
+        super(Broadcast, self).__init__()
         self.task = task
         self.n = n
         self.args = args
 
-        super(Broadcast, self).__init__()
-
-    def run(self, results):
-        results[self.id] = [self.task.remote(*self.args)] * self.n
+    def eval(self):
+        if self.result is None:
+            self.result = [self.task.remote(*self.args)] * self.n
+        return self.result
 
     def __len__(self):
         return self.n
@@ -46,17 +39,19 @@ class Map(RayIRNode):
     Returns: a list of objects
     """
     def __init__(self, task, objects, args=None):
+        super(Map, self).__init__()
         self.task = task
         self.objects = objects
         if args is None:
             args = [[] for _ in range(len(objects))]
         self.args = args
 
-        super(Map, self).__init__()
-
-    def run(self, results):
-        objs = results[self.objects.id]
-        results[self.id] = [self.task.remote(*(self.args[i] + [objs[i]])) for i in range(len(self.args))]
+    def eval(self):
+        if self.result is None:
+            self.result = []
+            for i,obj in enumerate(self.objects.eval()):
+                self.result.append(self.task.remote(*(self.args[i] + [obj])))
+        return self.result
 
     def __len__(self):
         return len(self.objects)
@@ -70,16 +65,17 @@ class InitActors(RayIRNode):
     Returns: a list of actors
     """
     def __init__(self, actor, n, args=None):
+        super(InitActors, self).__init__()
         self.actor = actor
         self.n = n
         if args is None:
             args = [[] for _ in range(n)]
         self.args = args
 
-        super(InitActors, self).__init__()
-
-    def run(self, results):
-        results[self.id] = [self.actor.remote(*args) for args in self.args]
+    def eval(self):
+        if self.result is None:
+            self.result = [self.actor.remote(*args) for args in self.args]
+        return self.result
 
     def __len__(self):
         return self.n
@@ -93,6 +89,7 @@ class MapActors(RayIRNode):
     Returns: a list of futures (possibly null)
     """
     def __init__(self, task, actors, objects, args=None):
+        super(MapActors, self).__init__()
         self.task = task
         self.actors = actors
         self.objects = objects
@@ -100,15 +97,15 @@ class MapActors(RayIRNode):
             args = [[] for _ in range(len(actors))]
         self.args = args
 
-        super(MapActors, self).__init__()
-
-    def run(self, results):
-        actors = results[self.actors.id]
-        objects = results[self.objects.id]
-        r = []
-        for k,actor in enumerate(actors):
-            r.append(getattr(actor, self.task).remote(*(self.args[k] + objects)))
-        results[self.id] = r
+    def eval(self):
+        if self.result is None:
+            actors = self.actors.eval()
+            objects = self.objects.eval()
+            self.result = []
+            for k,actor in enumerate(actors):
+                task = getattr(actor, self.task)
+                self.result.append(task.remote(*(self.args[k] + objects)))
+        return self.result
 
     def __len__(self):
         return len(self.actors)
