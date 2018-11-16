@@ -24,7 +24,9 @@ class Broadcast(RayIRNode):
 
     def eval(self):
         if self.result is None:
+            print('Evaluating: %s' % self)
             self.result = [self.task.remote(*self.args)] * self.n
+
         return self.result
 
     def __len__(self):
@@ -44,13 +46,20 @@ class Map(RayIRNode):
         self.objects = objects
         if args is None:
             args = [[] for _ in range(len(objects))]
+        elif len(args) != len(objects):
+            raise ValueError('Length of args (%d) must match objects (%d)'
+                             % (len(args), len(objects)))
         self.args = args
 
     def eval(self):
         if self.result is None:
+            objs = self.objects.eval()
+
+            print('Evaluating: %s' % self)
             self.result = []
-            for i,obj in enumerate(self.objects.eval()):
+            for i,obj in enumerate(objs):
                 self.result.append(self.task.remote(*(self.args[i] + [obj])))
+
         return self.result
 
     def __len__(self):
@@ -70,11 +79,16 @@ class InitActors(RayIRNode):
         self.n = n
         if args is None:
             args = [[] for _ in range(n)]
+        elif len(args) != n:
+            raise ValueError('Length of args (%d) must match n (%d)'
+                             % (len(args), n))
         self.args = args
 
     def eval(self):
         if self.result is None:
+            print('Evaluating: %s' % self)
             self.result = [self.actor.remote(*args) for args in self.args]
+
         return self.result
 
     def __len__(self):
@@ -95,16 +109,22 @@ class MapActors(RayIRNode):
         self.objects = objects
         if args is None:
             args = [[] for _ in range(len(actors))]
+        elif len(args) != n:
+            raise ValueError('Length of args (%d) must match actors (%d)'
+                             % (len(args), len(actors)))
         self.args = args
 
     def eval(self):
         if self.result is None:
             actors = self.actors.eval()
             objects = self.objects.eval()
+
+            print('Evaluating: %s' % self)
             self.result = []
             for k,actor in enumerate(actors):
                 task = getattr(actor, self.task)
                 self.result.append(task.remote(*(self.args[k] + objects)))
+
         return self.result
 
     def __len__(self):
