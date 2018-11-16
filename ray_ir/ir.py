@@ -1,5 +1,4 @@
 import uuid
-
 nodes = []
 
 def run():
@@ -33,7 +32,7 @@ class Broadcast(RayIRNode):
         super(Broadcast, self).__init__()
 
     def run(self, results):
-        results[self.id] = [self.task.remote(*self.args) for _ in range(self.n)]
+        results[self.id] = [self.task.remote(*self.args)] * self.n
 
     def __len__(self):
         return self.n
