@@ -5,6 +5,7 @@ nodes = []
 def run():
     results = {}
     for node in nodes:
+        print(node)
         node.run(results)
     return results
 
@@ -49,13 +50,14 @@ class Map(RayIRNode):
         self.task = task
         self.objects = objects
         if args is None:
-            args = [() for _ in range(len(objects))]
+            args = [[] for _ in range(len(objects))]
         self.args = args
 
         super(Map, self).__init__()
 
     def run(self, results):
-        results[self.id] = [self.task.remote(results[self.objects.id][i], *self.args[i]) for i in range(len(self.args))]
+        objs = results[self.objects.id]
+        results[self.id] = [self.task.remote(*(self.args[i] + [objs[i]])) for i in range(len(self.args))]
 
     def __len__(self):
         return len(self.objects)
@@ -72,7 +74,7 @@ class InitActors(RayIRNode):
         self.actor = actor
         self.n = n
         if args is None:
-            args = [() for _ in range(n)]
+            args = [[] for _ in range(n)]
         self.args = args
 
         super(InitActors, self).__init__()
@@ -96,7 +98,7 @@ class MapActors(RayIRNode):
         self.actors = actors
         self.objects = objects
         if args is None:
-            args = [() for _ in range(len(actors))]
+            args = [[] for _ in range(len(actors))]
         self.args = args
 
         super(MapActors, self).__init__()
@@ -104,8 +106,10 @@ class MapActors(RayIRNode):
     def run(self, results):
         actors = results[self.actors.id]
         objects = results[self.objects.id]
+        r = []
         for k,actor in enumerate(actors):
-            getattr(actor, self.task).remote(objects[k], *self.args[k])
+            r.append(getattr(actor, self.task).remote(*(self.args[k] + objects)))
+        results[self.id] = r
 
     def __len__(self):
         return len(self.actors)

@@ -28,11 +28,10 @@ def map_step(batch):
     return out
 
 @ray.remote
-def shuffle(batches, num_reducers):
+def shuffle(num_reducers, batch):
     partitions = [[] for _ in range(num_reducers)]
-    for batch in batches:
-        for i, e in enumerate(batch):
-            partitions[get_partition(i, e, num_reducers)].append(e)
+    for i, e in enumerate(batch):
+        partitions[get_partition(i, e, num_reducers)].append(e)
     return partitions
 
 @ray.remote
@@ -65,7 +64,7 @@ if __name__ == '__main__':
             num_cpus=NUM_CPUS
             )
 
-    reducer_args = [(i,) for i in range(args.num_reducers)]
+    reducer_args = [[i] for i in range(args.num_reducers)]
     reducers = InitActors(Reducer, args.num_reducers, reducer_args)
     dependencies = Broadcast(generate_dependencies, args.num_nodes, args.data_size)
 
@@ -80,12 +79,11 @@ if __name__ == '__main__':
             map_ins = Map(map_step, map_ins)
 
         # Shuffle data and submit reduce tasks.
-        shuffle_args = [(args.num_reducers,) for _ in range(args.num_nodes)]
+        shuffle_args = [[args.num_reducers] for _ in range(args.num_nodes)]
         shuffled = Map(shuffle, map_ins, shuffle_args)
         MapActors('reduce', reducers, shuffled)
 
         time.sleep(0.1)
-    for node in ir.nodes:
-        print(node)
+
     results = ir.run()
     print(ray.get([reducer.get_sum.remote() for reducer in results[reducers.id]]))
