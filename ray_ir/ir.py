@@ -1,4 +1,15 @@
+import json
 import uuid
+
+class SchedulerHint(object):
+    def __init__(self, colocate=None, pack=False):
+        if colocate is None:
+            colocate = ''
+        self.hint = {'colocate': colocate, 'pack': pack}
+
+    def json(self, prettyprint=True):
+        args = {'indent': 4, 'sort_keys': True} if prettyprint else {}
+        return json.dumps(self.hint, **args)
 
 class RayIRNode(object):
     def __init__(self):
@@ -28,6 +39,9 @@ class Broadcast(RayIRNode):
             self.result = [self.task.remote(*self.args)] * self.n
 
         return self.result
+
+    def hint(self):
+        return None
 
     def __len__(self):
         return self.n
@@ -62,6 +76,9 @@ class Map(RayIRNode):
 
         return self.result
 
+    def hints(self, objs):
+        return [SchedulerHint(colocate=str(obj)) for obj in objs]
+
     def __len__(self):
         return len(self.objects)
 
@@ -90,6 +107,9 @@ class InitActors(RayIRNode):
             self.result = [self.actor.remote(*args) for args in self.args]
 
         return self.result
+
+    def hints(self):
+        return [SchedulerHint()] * self.n
 
     def __len__(self):
         return self.n
@@ -131,6 +151,9 @@ class MapActors(RayIRNode):
                 self.result.append(task.remote(*(self.args[i] + objects)))
 
         return self.result
+
+    def hints(self):
+        return [SchedulerHint()] * len(self)
 
     def __len__(self):
         return len(self.actors)
