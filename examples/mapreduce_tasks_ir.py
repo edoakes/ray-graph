@@ -50,13 +50,12 @@ class Reducer(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num-nodes', type=int, required=True)
+    parser.add_argument('--num-nodes', type=int, default=1)
     parser.add_argument('--num-maps', type=int, default=1)
     parser.add_argument('--num-reducers', type=int, default=1)
-    parser.add_argument('--num-iterations', type=int, default=100)
+    parser.add_argument('--num-iterations', type=int, default=1)
     parser.add_argument('--data-size', type=int, default=100)
     args = parser.parse_args()
-
 
     ray.worker._init(
             start_ray_local=True,
@@ -72,8 +71,8 @@ if __name__ == '__main__':
     #    for j in range(NUM_CPUS):
     #        Map(warmup, dependencies)
 
-    map_ins = Map(map_step, dependencies)
     for _ in range(args.num_iterations):
+        map_ins = dependencies
         # Submit map tasks.
         for _ in range(args.num_maps):
             map_ins = Map(map_step, map_ins)

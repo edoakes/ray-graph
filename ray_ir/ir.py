@@ -2,18 +2,15 @@ import json
 import uuid
 
 class SchedulerHint(object):
-    def __init__(self, colocate=None, pack=False):
-        if colocate is None:
-            colocate = ''
-        self.hint = {'colocate': colocate, 'pack': pack}
-
-    def json(self, prettyprint=True):
-        args = {'indent': 4, 'sort_keys': True} if prettyprint else {}
-        return json.dumps(self.hint, **args)
+    def __init__(self, task_id, group_id, task_dep=None, group_dep=None):
+        self.task_id = task_id
+        self.group_id = group_id
+        self.task_dep = task_dep
+        self.group_dep = group_dep
 
 class RayIRNode(object):
     def __init__(self):
-        self.result = None
+        self.results = None
         self.id = uuid.uuid4()
 
     def short_id(self):
@@ -21,6 +18,9 @@ class RayIRNode(object):
 
     def __repr__(self):
         return self.__str__()
+
+    def __del__(self):
+        pass
 
 class Broadcast(RayIRNode):
     """
@@ -34,14 +34,12 @@ class Broadcast(RayIRNode):
         self.args = args
 
     def eval(self):
-        if self.result is None:
+        if self.results is None:
             print('Evaluating: %s' % self)
-            self.result = [self.task.remote(*self.args)] * self.n
+            self.hint = SchedulerHint(self.id, self.id)
+            self.results = [(self.id, self.task.remote(*self.args))] * self.n
 
-        return self.result
-
-    def hint(self):
-        return None
+        return self.results
 
     def __len__(self):
         return self.n
@@ -66,18 +64,17 @@ class Map(RayIRNode):
         self.args = args
 
     def eval(self):
-        if self.result is None:
-            objs = self.objects.eval()
+        if self.results is None:
+            results = self.objects.eval()
 
             print('Evaluating: %s' % self)
-            self.result = []
-            for i,obj in enumerate(objs):
-                self.result.append(self.task.remote(*(self.args[i] + [obj])))
+            self.results = []
+            for i,(task_dep, obj) in enumerate(results):
+                task_id = uuid.uuid4()
+                hint = SchedulerHint(task_id, self.id, task_dep=task_dep)
+                self.results.append((task_id, self.task.remote(*(self.args[i] + [obj]))))
 
-        return self.result
-
-    def hints(self, objs):
-        return [SchedulerHint(colocate=str(obj)) for obj in objs]
+        return self.results
 
     def __len__(self):
         return len(self.objects)
@@ -102,14 +99,11 @@ class InitActors(RayIRNode):
         self.args = args
 
     def eval(self):
-        if self.result is None:
+        if self.results is None:
             print('Evaluating: %s' % self)
-            self.result = [self.actor.remote(*args) for args in self.args]
+            self.results = [self.actor.remote(*args) for args in self.args]
 
-        return self.result
-
-    def hints(self):
-        return [SchedulerHint()] * self.n
+        return self.results
 
     def __len__(self):
         return self.n
@@ -139,21 +133,21 @@ class MapActors(RayIRNode):
         self.args = args
 
     def eval(self):
-        if self.result is None:
+        if self.results is None:
             actors = self.actors.eval()
-            objects = self.objects.eval()
+            results = self.objects.eval()
+            objects = [result[1] for result in results]
 
             print('Evaluating: %s' % self)
-            self.result = []
+            self.results = []
             for i,actor in enumerate(actors):
                 task = getattr(actor, self.task)
                 objs = objects[i] if self.pairwise else objects
-                self.result.append(task.remote(*(self.args[i] + objects)))
+                task_id = uuid.uuid4()
+                hint = SchedulerHint(task_id, self.id, group_dep=self.objects.id)
+                self.results.append((task_id, task.remote(*(self.args[i] + objects))))
 
-        return self.result
-
-    def hints(self):
-        return [SchedulerHint()] * len(self)
+        return self.results
 
     def __len__(self):
         return len(self.actors)
