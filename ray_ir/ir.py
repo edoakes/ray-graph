@@ -111,13 +111,13 @@ class InitActors(RayIRNode):
     def __str__(self):
         return 'InitActors(%s): %s' % (self.actor._class_name, self.short_id())
 
-class MapActors(RayIRNode):
+class ReduceActors(RayIRNode):
     """
     Params: a task, list of actors, a list of objects, and args (tuples) to each task
     Returns: a list of futures (possibly null)
     """
     def __init__(self, task, actors, objects, args=None, pairwise=False):
-        super(MapActors, self).__init__()
+        super(ReduceActors, self).__init__()
         self.task = task
         self.actors = actors
         self.objects = objects
@@ -154,4 +154,4 @@ class MapActors(RayIRNode):
 
     def __str__(self):
         class_name = self.actors.actor._class_name
-        return 'MapActors(%s.%s): %s' % (class_name, self.task, self.short_id())
+        return 'ReduceActors(%s.%s): %s' % (class_name, self.task, self.short_id())

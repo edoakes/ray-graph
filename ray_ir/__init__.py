@@ -1,1 +1,1 @@
-from ir import Broadcast, Map, InitActors, MapActors
+from ir import Broadcast, Map, InitActors, ReduceActors

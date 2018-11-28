@@ -80,7 +80,7 @@ if __name__ == '__main__':
         # Shuffle data and submit reduce tasks.
         shuffle_args = [[args.num_reducers] for _ in range(args.num_nodes)]
         shuffled = Map(shuffle, map_ins, shuffle_args)
-        MapActors('reduce', reducers, shuffled).eval()
+        ReduceActors('reduce', reducers, shuffled).eval()
 
         time.sleep(0.1)
 
