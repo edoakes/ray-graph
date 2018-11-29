@@ -1,4 +1,5 @@
-Ray dependency graph parser.
+# Install ray\_ir package locally
+pip install -e ray\_ir
 
 # Dependency IR
 
