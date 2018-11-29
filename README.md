@@ -36,9 +36,21 @@ reducers = MapActors("Reducer.reduce", reducers, shuffles)
 def f(x):
   return x
 
+# Submit a task normally.
 f.remote(1)
+
+# Submit the same task several times, but this time as a part of a group.
+group_id = ray.ObjectID(ray.utils.random_string())
+group = [f._remote(args=[1],
+           group_id=group_id  # Which group this task is part of.
+           ) for _ in range(10)]
+
+# Submit another task that is dependent on the group.
 f._remote(
-  args=[1],
-  group_id=ray.ObjectID(ray.utils.random_string()),  # Which group this task is part of.
-  group_dependency=ray.ObjectID(ray.utils.random_string())  # Which group this task depends on.
+  args=group,
+  group_dependency=group_id  # Which group this task depends on.
+  )
+
+# Tell the scheduler that we no longer care about where the group was placed.
+ray.free_groups([group_id])
 ```
