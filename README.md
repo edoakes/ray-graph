@@ -27,3 +27,18 @@ dependencies = Task("generate_dependencies")
 maps = Broadcast("map_step", dependencies)
 shuffles = Map("shuffle", maps)
 reducers = MapActors("Reducer.reduce", reducers, shuffles)
+
+
+## Example for using the scheduler interface:
+
+```python
+@ray.remote
+def f(x):
+  return x
+
+f.remote(1)
+f._remote(
+  args=[1],
+  group_id=ray.ObjectID(ray.utils.random_string()),  # Which group this task is part of.
+  group_dependency=ray.ObjectID(ray.utils.random_string())  # Which group this task depends on.
+```

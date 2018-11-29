@@ -11,6 +11,11 @@ group_schedule = {
         }
 
 
+groups = {
+        group_id: [task_id],
+        }
+
+
 task_schedule = {
         task_id: node_id,
         }
