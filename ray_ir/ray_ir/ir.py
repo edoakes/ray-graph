@@ -161,7 +161,7 @@ class ReduceActors(RayIRNode):
 
             print('Evaluating: %s' % self)
             self.results = []
-            for i,actor in enumerate(actors):
+            for i,(_, actor) in enumerate(actors):
                 task = getattr(actor, self.task)
                 objs = objects[i] if self.pairwise else objects
                 task_id = uuid.uuid4()

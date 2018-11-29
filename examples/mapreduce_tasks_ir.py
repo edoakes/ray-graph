@@ -5,7 +5,6 @@ import time
 import argparse
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from ray_ir import *
 
 NUM_CPUS = 4
@@ -84,4 +83,4 @@ if __name__ == '__main__':
 
         time.sleep(0.1)
 
-    print(ray.get([reducer.get_sum.remote() for reducer in reducers.eval()]))
+    print(ray.get([reducer.get_sum.remote() for _,reducer in reducers.eval()]))
