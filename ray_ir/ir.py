@@ -1,6 +1,12 @@
 import json
 import uuid
 
+def scheduler_free_task(task_id):
+    pass
+
+def scheduler_free_group(task_id):
+    pass
+
 class SchedulerHint(object):
     def __init__(self, task_id, group_id, task_dep=None, group_dep=None):
         self.task_id = task_id
@@ -18,9 +24,6 @@ class RayIRNode(object):
 
     def __repr__(self):
         return self.__str__()
-
-    def __del__(self):
-        pass
 
 class Broadcast(RayIRNode):
     """
@@ -40,6 +43,10 @@ class Broadcast(RayIRNode):
             self.results = [(self.id, self.task.remote(*self.args))] * self.n
 
         return self.results
+
+    def __del__(self):
+        scheduler_free_group(self.id)
+        scheduler_free_task(self.id)
 
     def __len__(self):
         return self.n
@@ -76,6 +83,11 @@ class Map(RayIRNode):
 
         return self.results
 
+    def __del__(self):
+        scheduler_free_group(self.id)
+        for task_id,_ in self.results:
+            scheduler_free_task(task_id)
+
     def __len__(self):
         return len(self.objects)
 
@@ -101,9 +113,18 @@ class InitActors(RayIRNode):
     def eval(self):
         if self.results is None:
             print('Evaluating: %s' % self)
-            self.results = [self.actor.remote(*args) for args in self.args]
+            self.results = []
+            for args in self.args:
+                task_id = uuid.uuid4()
+                hint = SchedulerHint(task_id, self.id)
+                self.results.append((task_id, self.actor.remote(*args)))
 
         return self.results
+
+    def __del__(self):
+        scheduler_free_group(self.id)
+        for task_id,_ in self.results:
+            scheduler_free_task(task_id)
 
     def __len__(self):
         return self.n
@@ -148,6 +169,11 @@ class ReduceActors(RayIRNode):
                 self.results.append((task_id, task.remote(*(self.args[i] + objects))))
 
         return self.results
+
+    def __del__(self):
+        scheduler_free_group(self.id)
+        for task_id,_ in self.results:
+            scheduler_free_task(task_id)
 
     def __len__(self):
         return len(self.actors)
