@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--num-nodes', type=int, default=1)
 parser.add_argument('--num-maps', type=int, default=1)
 parser.add_argument('--num-reducers', type=int, default=1)
-parser.add_argument('--num-iterations', type=int, default=100)
+parser.add_argument('--num-iterations', type=int, default=1)
 parser.add_argument('--data-size', type=int, default=100)
 
 
@@ -52,6 +52,7 @@ class Reducer(object):
         return self.sum
 
 def main(args):
+    start = time.time()
     reducers = [Reducer.remote(i) for i in range(args.num_reducers)]
     dependencies = generate_dependencies.remote(args.data_size)
 
@@ -68,6 +69,7 @@ def main(args):
         time.sleep(0.1)
 
     print(ray.get([reducer.get_sum.remote() for reducer in reducers]))
+    print('Finished in %.2fs' % (time.time()-start))
 
 if __name__ == '__main__':
     args = parser.parse_args()

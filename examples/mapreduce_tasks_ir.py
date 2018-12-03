@@ -52,6 +52,7 @@ class Reducer(object):
         return self.sum
 
 def main(args):
+    start = time.time()
     reducer_args = [[i] for i in range(args.num_reducers)]
     reducers = InitActors(Reducer, args.num_reducers, reducer_args)
     dependencies = Broadcast(generate_dependencies, args.num_nodes, args.data_size)
@@ -70,6 +71,7 @@ def main(args):
         time.sleep(0.1)
 
     print(ray.get([reducer.get_sum.remote() for reducer in reducers.eval()]))
+    print('Finished in %.2fs' % (time.time()-start))
 
 if __name__ == '__main__':
     args = parser.parse_args()

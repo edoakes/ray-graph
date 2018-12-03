@@ -129,14 +129,14 @@ class ReduceActors(RayIRNode):
 
     def eval(self):
         if self.results is None:
-            actors = self.actors.eval(self.objects.id)
+            actors = self.actors.eval(self.objects.group_id)
             objects = self.objects.eval()
 
             print('Evaluating: %s' % self)
             self.results = []
             for i,actor in enumerate(actors):
                 task = getattr(actor, self.task)
-                self.results.append(self.remote(task, self.args[i] + objects, self.actors.id))
+                self.results.append(self.remote(task, self.args[i] + objects, self.actors.group_id))
 
         return self.results
 
