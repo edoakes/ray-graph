@@ -3,7 +3,7 @@ import json
 from ray import ObjectID
 from ray.utils import random_string
 
-def scheduler_free_group(task_id):
+def scheduler_free_group(group_id):
     pass
 
 class RayIRNode(object):
