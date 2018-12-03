@@ -1,26 +1,25 @@
 import json
-import uuid
 
-def scheduler_free_task(task_id):
-    pass
+from ray import ObjectID
+from ray.utils import random_string
 
 def scheduler_free_group(task_id):
     pass
 
-class SchedulerHint(object):
-    def __init__(self, task_id, group_id, task_dep=None, group_dep=None):
-        self.task_id = task_id
-        self.group_id = group_id
-        self.task_dep = task_dep
-        self.group_dep = group_dep
-
 class RayIRNode(object):
     def __init__(self):
         self.results = None
-        self.id = uuid.uuid4()
+        self.group_id = ObjectID(random_string())
 
     def short_id(self):
-        return str(self.id)[:8]
+        return self.group_id.hex()[:8]
+
+    def remote(self, task, args, group_id=None, group_dep=None):
+        #return task._remote(args, group_id=group_id, group_dependency=group_dep)
+        return task._remote(args, {})
+
+    def __del__(self):
+        scheduler_free_group(self.group_id)
 
     def __repr__(self):
         return self.__str__()
@@ -39,14 +38,9 @@ class Broadcast(RayIRNode):
     def eval(self):
         if self.results is None:
             print('Evaluating: %s' % self)
-            self.hint = SchedulerHint(self.id, self.id)
-            self.results = [(self.id, self.task.remote(*self.args))] * self.n
+            self.results = [self.remote(self.task, self.args, self.group_id)] * self.n
 
         return self.results
-
-    def __del__(self):
-        scheduler_free_group(self.id)
-        scheduler_free_task(self.id)
 
     def __len__(self):
         return self.n
@@ -76,17 +70,10 @@ class Map(RayIRNode):
 
             print('Evaluating: %s' % self)
             self.results = []
-            for i,(task_dep, obj) in enumerate(results):
-                task_id = uuid.uuid4()
-                hint = SchedulerHint(task_id, self.id, task_dep=task_dep)
-                self.results.append((task_id, self.task.remote(*(self.args[i] + [obj]))))
+            for i,obj in enumerate(results):
+                self.results.append(self.remote(self.task, self.args[i] + [obj], self.group_id))
 
         return self.results
-
-    def __del__(self):
-        scheduler_free_group(self.id)
-        for task_id,_ in self.results:
-            scheduler_free_task(task_id)
 
     def __len__(self):
         return len(self.objects)
@@ -110,21 +97,12 @@ class InitActors(RayIRNode):
                              % (len(args), n))
         self.args = args
 
-    def eval(self):
+    def eval(self, group_dep=None):
         if self.results is None:
             print('Evaluating: %s' % self)
-            self.results = []
-            for args in self.args:
-                task_id = uuid.uuid4()
-                hint = SchedulerHint(task_id, self.id)
-                self.results.append((task_id, self.actor.remote(*args)))
+            self.results = [self.remote(self.actor, args, self.group_id, group_dep) for args in self.args]
 
         return self.results
-
-    def __del__(self):
-        scheduler_free_group(self.id)
-        for task_id,_ in self.results:
-            scheduler_free_task(task_id)
 
     def __len__(self):
         return self.n
@@ -137,43 +115,30 @@ class ReduceActors(RayIRNode):
     Params: a task, list of actors, a list of objects, and args (tuples) to each task
     Returns: a list of futures (possibly null)
     """
-    def __init__(self, task, actors, objects, args=None, pairwise=False):
+    def __init__(self, task, actors, objects, args=None):
         super(ReduceActors, self).__init__()
         self.task = task
         self.actors = actors
         self.objects = objects
-        self.pairwise = pairwise
         if args is None:
             args = [[] for _ in range(len(actors))]
         elif len(args) != len(actors):
             raise ValueError('Length of args (%d) must match actors (%d)'
                              % (len(args), len(actors)))
-        elif pairwise and len(objects) != len(actors):
-            raise ValueError('Length of objects (%d) must match actors (%d)'
-                             % (len(objects), len(actors)))
         self.args = args
 
     def eval(self):
         if self.results is None:
-            actors = self.actors.eval()
-            results = self.objects.eval()
-            objects = [result[1] for result in results]
+            actors = self.actors.eval(self.objects.id)
+            objects = self.objects.eval()
 
             print('Evaluating: %s' % self)
             self.results = []
-            for i,(_, actor) in enumerate(actors):
+            for i,actor in enumerate(actors):
                 task = getattr(actor, self.task)
-                objs = objects[i] if self.pairwise else objects
-                task_id = uuid.uuid4()
-                hint = SchedulerHint(task_id, self.id, group_dep=self.objects.id)
-                self.results.append((task_id, task.remote(*(self.args[i] + objects))))
+                self.results.append(self.remote(task, self.args[i] + objects, self.actors.id))
 
         return self.results
-
-    def __del__(self):
-        scheduler_free_group(self.id)
-        for task_id,_ in self.results:
-            scheduler_free_task(task_id)
 
     def __len__(self):
         return len(self.actors)
