@@ -19,7 +19,7 @@ def get_partition(index, element, num_reducers):
 
 @ray.remote
 def generate_dependencies(data_size):
-    return np.random.rand(data_size)
+    return 0, np.random.rand(data_size)
 
 @ray.remote
 def warmup(dependencies):
@@ -27,41 +27,49 @@ def warmup(dependencies):
 
 
 @ray.remote
-def map_step(batch):
+def map_step(start_time, batch):
+    batch = batch[1]
     out = np.array([e for e in batch])
-    return out
+    return start_time, batch
 
 @ray.remote
 def shuffle(num_reducers, batch):
+    start_time, batch = batch
     partitions = [[] for _ in range(num_reducers)]
     for i, e in enumerate(batch):
         partitions[get_partition(i, e, num_reducers)].append(e)
-    return partitions
+    return start_time, partitions
 
 @ray.remote
 class Reducer(object):
     def __init__(self, reduce_index):
         self.reduce_index = reduce_index
         self.sum = 0
+        self.latencies = []
 
     def reduce(self, *partitions):
-        for partition in partitions:
+        for start_time, partition in partitions:
             self.sum += sum(partition[self.reduce_index])
+            self.latencies.append(time.time() - start_time)
 
     def get_sum(self):
         return self.sum
 
+    def get_latencies(self):
+        return self.latencies
+
+
 def main(args):
-    start = time.time()
     reducer_args = [[i] for i in range(args.num_reducers)]
     reducers = InitActors(Reducer, args.num_reducers, reducer_args)
     dependencies = Broadcast(generate_dependencies, args.num_nodes, args.data_size)
 
     for _ in range(args.num_iterations):
+        start = time.time()
         map_ins = dependencies
         # Submit map tasks.
         for _ in range(args.num_maps):
-            map_ins = Map(map_step, map_ins)
+            map_ins = Map(map_step, map_ins, args=[[start] for _ in range(len(map_ins))])
 
         # Shuffle data and submit reduce tasks.
         shuffle_args = [[args.num_reducers] for _ in range(args.num_nodes)]
@@ -70,8 +78,13 @@ def main(args):
 
         time.sleep(0.1)
 
-    print(ray.get([reducer.get_sum.remote() for reducer in reducers.eval()]))
-    print('Finished in %.2fs' % (time.time()-start))
+    latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers.eval()])
+    latencies = [latency for lst in latencies for latency in lst]
+    print(latencies)
+    print("Avg:", sum(latencies) / len(latencies))
+    print("Min:", min(latencies))
+    print("Max:", max(latencies))
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
