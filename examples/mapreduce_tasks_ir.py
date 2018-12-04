@@ -13,6 +13,7 @@ parser.add_argument('--num-maps', type=int, default=1)
 parser.add_argument('--num-reducers', type=int, default=1)
 parser.add_argument('--num-iterations', type=int, default=1)
 parser.add_argument('--data-size', type=int, default=int(1e6))
+parser.add_argument('--use-groups', action='store_true')
 
 def get_partition(index, element, num_reducers):
     return index % num_reducers
@@ -93,4 +94,6 @@ if __name__ == '__main__':
             num_local_schedulers=args.num_nodes,
             num_cpus=NUM_CPUS
     )
+    from ray_ir import ir
+    ir.USE_GROUPS = args.use_groups
     main(args)

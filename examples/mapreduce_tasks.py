@@ -24,7 +24,6 @@ def generate_dependencies(data_size):
 def warmup(dependencies):
     time.sleep(1)
 
-
 @ray.remote
 def map_step(batch):
     out = np.array([e for e in batch])

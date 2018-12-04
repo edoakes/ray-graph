@@ -3,8 +3,7 @@ import json
 from ray import ObjectID
 from ray.utils import random_string
 
-
-TEST_GROUPS = False
+USE_GROUPS = False
 
 def scheduler_free_group(group_id):
     pass
@@ -18,10 +17,9 @@ class RayIRNode(object):
         return self.group_id.hex()[:8]
 
     def remote(self, task, args, group_id=None, group_dep=None):
-        if TEST_GROUPS:
+        if USE_GROUPS:
             return task._remote(args, kwargs={}, group_id=group_id, group_dependency=group_dep)
-        else:
-            return task._remote(args, {})
+        return task._remote(args, {})
 
     def __del__(self):
         scheduler_free_group(self.group_id)
