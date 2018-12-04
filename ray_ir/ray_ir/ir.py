@@ -3,6 +3,9 @@ import json
 from ray import ObjectID
 from ray.utils import random_string
 
+
+TEST_GROUPS = False
+
 def scheduler_free_group(group_id):
     pass
 
@@ -15,8 +18,10 @@ class RayIRNode(object):
         return self.group_id.hex()[:8]
 
     def remote(self, task, args, group_id=None, group_dep=None):
-        #return task._remote(args, group_id=group_id, group_dependency=group_dep)
-        return task._remote(args, {})
+        if TEST_GROUPS:
+            return task._remote(args, kwargs={}, group_id=group_id, group_dependency=group_dep)
+        else:
+            return task._remote(args, {})
 
     def __del__(self):
         scheduler_free_group(self.group_id)
@@ -37,7 +42,7 @@ class Broadcast(RayIRNode):
 
     def eval(self):
         if self.results is None:
-            print('Evaluating: %s' % self)
+            print('Evaluating: %s, group %s' % (self, self.group_id))
             self.results = [self.remote(self.task, self.args, self.group_id)] * self.n
 
         return self.results
@@ -66,12 +71,15 @@ class Map(RayIRNode):
 
     def eval(self):
         if self.results is None:
+            group_dependency = None
+            if isinstance(self.objects, Broadcast):
+                group_dependency = self.objects.group_id
             results = self.objects.eval()
 
-            print('Evaluating: %s' % self)
+            print('Evaluating: %s, group %s' % (self, self.group_id))
             self.results = []
             for i,obj in enumerate(results):
-                self.results.append(self.remote(self.task, self.args[i] + [obj], self.group_id))
+                self.results.append(self.remote(self.task, self.args[i] + [obj], self.group_id, group_dep=group_dependency))
 
         return self.results
 
