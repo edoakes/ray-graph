@@ -1,3 +1,4 @@
+import os
 import ray
 import time
 import argparse
@@ -9,11 +10,12 @@ NUM_CPUS = 4
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num-nodes', type=int, default=1)
-parser.add_argument('--cluster', action='store_true')
 parser.add_argument('--num-maps', type=int, default=1)
 parser.add_argument('--num-reducers', type=int, default=1)
 parser.add_argument('--num-iterations', type=int, default=1)
 parser.add_argument('--data-size', type=int, default=int(1e3))
+parser.add_argument('--no-dump', action='store_true')
+parser.add_argument('--cluster', action='store_true')
 parser.add_argument('--use-groups', action='store_true')
 
 def get_partition(index, element, num_reducers):
@@ -81,16 +83,33 @@ def main(args):
 
     latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers.eval()])
     latencies = [latency for lst in latencies for latency in lst]
-    print(latencies)
-    print("Avg:", sum(latencies) / len(latencies))
-    print("Min:", min(latencies))
-    print("Max:", max(latencies))
+    latencies = latencies[len(latencies)//5:]
 
-    if args.use_groups:
-        filename = "dump-groups.json"
-    else:
-        filename = "dump-no-groups.json"
-    ray.global_state.chrome_tracing_dump(filename)
+    try: os.mkdir('logs')
+    except: pass
+
+    path = '{}nodes_{}maps_{}reducers_{}iterations_{}'.format(
+        args.num_nodes, args.num_maps, args.num_reducers,
+        args.num_iterations, args.data_size
+    )
+
+    with open(path, 'w') as f:
+        print('Avg:', sum(latencies) / len(latencies))
+        print('Avg:', sum(latencies) / len(latencies), file=f)
+        print('Min:', min(latencies))
+        print('Min:', min(latencies), file=f)
+        print('Max:', max(latencies))
+        print('Max:', max(latencies), file=f)
+        print('')
+        for l in latencies:
+            print(l, file=f)
+
+    if not args.no_dump:
+        if args.use_groups:
+            filename = "dump-groups.json"
+        else:
+            filename = "dump-no-groups.json"
+        ray.global_state.chrome_tracing_dump(filename)
 
 
 if __name__ == '__main__':
