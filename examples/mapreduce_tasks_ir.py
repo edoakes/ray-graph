@@ -9,10 +9,11 @@ NUM_CPUS = 4
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--num-nodes', type=int, default=1)
+parser.add_argument('--cluster', action='store_true')
 parser.add_argument('--num-maps', type=int, default=1)
 parser.add_argument('--num-reducers', type=int, default=1)
 parser.add_argument('--num-iterations', type=int, default=1)
-parser.add_argument('--data-size', type=int, default=int(1e6))
+parser.add_argument('--data-size', type=int, default=int(1e3))
 parser.add_argument('--use-groups', action='store_true')
 
 def get_partition(index, element, num_reducers):
@@ -33,9 +34,10 @@ def map_step(start_time, batch):
     return start_time, ray.worker.global_worker.plasma_client.store_socket_name, batch
 
 @ray.remote
-def shuffle(num_reducers, batch):
+def shuffle(num_reducers, use_groups, batch):
     start_time, location, batch = batch
-    assert location == ray.worker.global_worker.plasma_client.store_socket_name
+    if use_groups:
+        assert location == ray.worker.global_worker.plasma_client.store_socket_name
     partitions = np.split(batch, range(0, len(batch), len(batch) // num_reducers)[1:])
     return start_time, [np.sum(partition) for partition in partitions]
 
@@ -71,7 +73,7 @@ def main(args):
             map_ins = Map(map_step, map_ins, args=[[start] for _ in range(len(map_ins))])
 
         # Shuffle data and submit reduce tasks.
-        shuffle_args = [[args.num_reducers] for _ in range(len(map_ins))]
+        shuffle_args = [[args.num_reducers, args.use_groups] for _ in range(len(map_ins))]
         shuffled = Map(shuffle, map_ins, shuffle_args)
         ReduceActors('reduce', reducers, shuffled).eval()
 
@@ -84,16 +86,23 @@ def main(args):
     print("Min:", min(latencies))
     print("Max:", max(latencies))
 
-    ray.global_state.chrome_tracing_dump("dump.json")
+    if args.use_groups:
+        filename = "dump-groups.json"
+    else:
+        filename = "dump-no-groups.json"
+    ray.global_state.chrome_tracing_dump(filename)
 
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    ray.worker._init(
-            start_ray_local=True,
-            num_local_schedulers=args.num_nodes,
-            num_cpus=NUM_CPUS
-    )
+    if args.cluster:
+        ray.init(redis_address="localhost:6379")
+    else:
+        ray.worker._init(
+                start_ray_local=True,
+                num_local_schedulers=args.num_nodes,
+                num_cpus=NUM_CPUS
+        )
     from ray_ir import ir
     ir.USE_GROUPS = args.use_groups
     main(args)
