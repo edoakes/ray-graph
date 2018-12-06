@@ -88,9 +88,9 @@ def main(args):
     try: os.mkdir('logs')
     except: pass
 
-    path = '{}nodes_{}maps_{}reducers_{}iterations_{}'.format(
+    path = 'logs/{}nodes_{}maps_{}reducers_{}iterations_{}_{}'.format(
         args.num_nodes, args.num_maps, args.num_reducers,
-        args.num_iterations, args.data_size
+        args.num_iterations, args.data_size, "groups" if args.use_groups else "no-groups"
     )
 
     with open(path, 'w') as f:
