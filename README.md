@@ -1,7 +1,7 @@
 # Introduction
 Machine learning systems in production may require a diverse array of applications, requiring everything from hyperparameter search to train a model to stream processing to ingest data.
 In the past, specialized systems have been built for each of these individual applications, leaving the burden of integrating these systems on the user, with a potentially prohibitive performance cost.
-Ray is a system that makes it easy to develop and deploy applications in machine learning by exposing higher-level Python libraries for traditionally disparate applications, all supported by a common distributed framework.
+[Ray](https://github.com/ray-project/ray) is a system that makes it easy to develop and deploy applications in machine learning by exposing higher-level Python libraries for traditionally disparate applications, all supported by a common distributed framework.
 Ray does this by exposing a relatively low-level API that is flexible enough to support a variety of computation patterns.
 This API allows the user to define *tasks*, which represent an asynchronous and possibly remote function invocation, and *actors*, which represent some state bound to a process.
 
@@ -53,7 +53,23 @@ ray.get(reducer.get.remote())  # Returns the result of the dot task.
 ```
 
 ## Ray Architecture
+Because the Ray API is relatively low-level, a typical Ray program will often consist of a large number of tasks or actor methods of possibly short (<10ms) duration.
+Therefore, the architecture is designed to scale horizontally while also reducing the computation overhead, in terms of latency per task, as much as possible.
+There are two important architecture features to note for this project: (1) application data management, and (2) distributed scheduling.
+
 ![Ray multinode architecture](figures/ray-architecture.jpg "Ray multinode architecture")
+
+Because Ray was originally designed for machine learning applications, interoperability with popular Python libraries like [`numpy`](http://www.numpy.org/) is a priority.
+Ray also aims to make it easier to run Python programs on multicore machines.
+Therefore, Ray stores application data in a shared-memory object store per node using a zero-copy format called [Apache Arrow](https://arrow.apache.org/).
+Worker processes interact with the object store directly to retrieve and store task arguments and return values, respectively, allowing worker processes on the same node to efficiently share common data.
+
+Ray uses a distributed scheduler to manage resources on a single node and across the cluster.
+An instance of the scheduler runs on each node and is responsible for dispatching tasks according to the local resource availability (e.g., number of CPUs).
+The scheduler is also responsible for managing each task's data dependencies and dispatching a task only when its data dependencies are local.
+Data dependencies can become local if the task that creates the data executes locally, or if the scheduler fetches the data from another node.
+Since fetching an object incurs some delay, it is often beneficial to colocate dependent tasks.
+However, achieving the best performance overall for certain workloads may require a balance of task colocation with load-balancing, to account for global resource capacity.
 
 ## Stream Processing Example
 - [code]
