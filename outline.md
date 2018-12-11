@@ -1,5 +1,10 @@
 # Introduction
-- [stephanie]Ray is a framework for distributed Python with a low-level API
+Machine learning systems in production may require a diverse array of applications, requiring everything from hyperparameter search to train a model to stream processing to ingest data.
+In the past, specialized systems have been built for each of these individual applications, leaving the burden of integrating these systems on the user, with a potentially prohibitive performance cost.
+Ray is a system that makes it easy to develop and deploy applications in machine learning by exposing higher-level Python libraries for traditionally disparate applications, all supported by a common distributed framework.
+Ray does this by exposing a relatively low-level API that is flexible enough to support a variety of computation patterns.
+This API allows the user to define "tasks", which represent an asynchronous and possibly remote function invocation, and "actors", which represent some state bound to a process.
+
 - [ed]Problem: Can we support specific applications (e.g., stream processing) with a low-level API like Ray's?
 - [ed]stream processing application example
 # [stephanie]Background
