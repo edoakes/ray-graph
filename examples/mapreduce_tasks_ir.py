@@ -81,7 +81,7 @@ def main(args):
 
         time.sleep(0.1)
 
-    latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers.eval()])
+    latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers])
     latencies = [latency for lst in latencies for latency in lst]
     latencies = latencies[len(latencies)//5:]
 

@@ -27,6 +27,10 @@ class RayIRNode(object):
     def __repr__(self):
         return self.__str__()
 
+    def __getitem__(self, key):
+        assert self.results is not None
+        return self.results.__getitem__(key)
+
 class Broadcast(RayIRNode):
     """
     Params: a task, the number to broadcast, and args to the task
