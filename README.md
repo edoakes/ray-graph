@@ -68,8 +68,11 @@ Ray uses a distributed scheduler to manage resources on a single node and across
 An instance of the scheduler runs on each node and is responsible for dispatching tasks according to the local resource availability (e.g., number of CPUs).
 The scheduler is also responsible for managing each task's data dependencies and dispatching a task only when its data dependencies are local.
 Data dependencies can become local if the task that creates the data executes locally, or if the scheduler fetches the data from another node.
-Since fetching an object incurs some delay, it is often beneficial to colocate dependent tasks.
-However, achieving the best performance overall for certain workloads may require a balance of task colocation with load-balancing, to account for global resource capacity.
+
+The Ray scheduler has to contend with a number of potentially conflicting requirements.
+For instance, since fetching an object incurs some delay, it is often beneficial to colocate dependent tasks.
+However, achieving the best performance overall for certain workloads may require a balance between colocating tasks and global load-balancing, to account for resource capacity.
+The right balance may depend on the application-specific factors such as task duration, data size, and task load.
 
 ## Stream Processing Example
 - [code]
