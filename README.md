@@ -15,7 +15,7 @@
 - [figure]
 # Design
 
-## [ed]IR
+## [ed]Intermediate Representation
 IR currently consists of 4 nodes:
 - Broadcast
 - Map
@@ -42,9 +42,19 @@ def main(args):
     latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers.eval()])
 ```
 
-A dependency tree is built up by passing references to new IR nodes. Subtrees are evaluated when .eval() is called on an IR node, returning the result (futures).
-  - "Group" dependencies to mimic BSP
-  - Actor scheduling
+A dependency tree is built up by passing references to new IR nodes.
+Subtrees are evaluated when `node.eval()` is called on an IR node, returning the resulting Ray futures.
+
+The IR introduces semantics between groups of submitted tasks, which we can use to make more intelligent scheduling decisions in the backend.
+This semantic model mimics those of BSP systems while using a slightly extended Ray API under the hood.
+Describe how dependencies are submitted from the frontend.
+More details about backend in next section.
+
+Actors can only be placed once, as they are stateful.
+Semi-lazy evaluation gives us flexibility to make the actor placement intelligently.
+Currently, the `InitActors` inherits its dependency from the first corresponding `ReduceActors` that's evaluated.
+Could do more in the future.
+
 ## [stephanie][pseudocode]Scheduler algorithm for group scheduling
 
 # [stephanie]Evaluation
