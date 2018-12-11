@@ -14,20 +14,20 @@ The Ray API exposes two main primitives: *tasks* to represent functional program
 A task may be specified and created as follows:
 ```python
 @ray.remote
-def zeros(shape):
-    return np.zeros(shape)
-id1 = zeros.remote()
-id2 = zeros.remote()
+def random(shape):
+    return np.random.rand(shape)
+id1 = random.remote()
+id2 = random.remote()
 ```
-In this code example, the `ray.remote` decorator indicates that the `zeros` function may be run as a task.
-A task can be created by calling `zeros.remote()`, which triggers an asynchronous and possibly remote invocation of the `zeros` task.
-The returned *future* can be used to either get the value returned by the `zeros` task, or as an input to another task:
+In this code example, the `ray.remote` decorator indicates that the `random` function may be run as a task.
+A task can be created by calling `random.remote()`, which triggers an asynchronous and possibly remote invocation of the `random` task.
+The returned *future* can be used to either get the value returned by the `random` task, or as an input to another task:
 ```python
 @ray.remote
 def dot(a, b):
   return np.dot(a, b)
-id3 = dot.remote(id1, id2)  # Pass the futures are arguments to another task.
-result = ray.get(id3)  # Get the value returned by the dots task.
+id3 = dot.remote(id1, id2)  # Pass the futures as arguments to another task.
+ray.get(id3)  # Returns the result of the dot task.
 ```
 
 To support distributed *state*, a Ray user can also define and create an *actor*, which represents an object that is bound to a particular Python process.
@@ -43,12 +43,13 @@ class Reducer(object):
         self.value += value
 
 reducer = Reducer.remote()
-ray.get(reducer.get.remote())
+ray.get(reducer.get.remote())  # Returns 0.
 ```
 Both tasks and methods called on an actor can take in and return a future, making it easy to interoperate between functions and objects.
 For instance, the `reducer` actor can be used to store the results of previous `dot` tasks:
 ```python
 reducer.add.remote(id3)
+ray.get(reducer.get.remote())  # Returns the result of the dot task.
 ```
 
 ## Ray Architecture
