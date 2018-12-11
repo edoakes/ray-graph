@@ -53,7 +53,8 @@ ray.get(reducer.get.remote())  # Returns the result of the dot task.
 ```
 
 ## Ray Architecture
-- [figure]
+![Ray multinode architecture](figures/ray-architecture.jpg "Ray multinode architecture")
+
 ## Stream Processing Example
 - [code]
 - [figure]
