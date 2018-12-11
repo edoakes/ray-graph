@@ -3,14 +3,54 @@ Machine learning systems in production may require a diverse array of applicatio
 In the past, specialized systems have been built for each of these individual applications, leaving the burden of integrating these systems on the user, with a potentially prohibitive performance cost.
 Ray is a system that makes it easy to develop and deploy applications in machine learning by exposing higher-level Python libraries for traditionally disparate applications, all supported by a common distributed framework.
 Ray does this by exposing a relatively low-level API that is flexible enough to support a variety of computation patterns.
-This API allows the user to define "tasks", which represent an asynchronous and possibly remote function invocation, and "actors", which represent some state bound to a process.
+This API allows the user to define *tasks*, which represent an asynchronous and possibly remote function invocation, and *actors*, which represent some state bound to a process.
 
 - [ed]Problem: Can we support specific applications (e.g., stream processing) with a low-level API like Ray's?
 - [ed]stream processing application example
 
 # [stephanie]Background
 ## Ray API
-- [code]
+The Ray API exposes two main primitives: *tasks* to represent functional programming and *actors* to represent object-oriented programming.
+A task may be specified and created as follows:
+```python
+@ray.remote
+def zeros(shape):
+    return np.zeros(shape)
+id1 = zeros.remote()
+id2 = zeros.remote()
+```
+In this code example, the `ray.remote` decorator indicates that the `zeros` function may be run as a task.
+A task can be created by calling `zeros.remote()`, which triggers an asynchronous and possibly remote invocation of the `zeros` task.
+The returned *future* can be used to either get the value returned by the `zeros` task, or as an input to another task:
+```python
+@ray.remote
+def dot(a, b):
+  return np.dot(a, b)
+id3 = dot.remote(id1, id2)  # Pass the futures are arguments to another task.
+result = ray.get(id3)  # Get the value returned by the dots task.
+```
+
+To support distributed *state*, a Ray user can also define and create an *actor*, which represents an object that is bound to a particular Python process.
+When an actor is created, the user receives a *handle* to the actor that can be used to submit methods on the actor's state.
+```python
+@ray.remote
+class Reducer(object):
+    def __init__(self):
+        self.value = 0
+    def get(self):
+        return self.value
+    def add(self, value)
+        self.value += value
+
+reducer = Reducer.remote()
+ray.get(reducer.get.remote())
+```
+Both tasks and methods called on an actor can take in and return a future, making it easy to interoperate between functions and objects.
+For instance, the `reducer` actor can be used to store the results of previous `dot` tasks:
+```python
+reducer.add.remote(id3)
+```
+
 ## Ray Architecture
 - [figure]
 ## Stream Processing Example
