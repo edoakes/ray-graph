@@ -95,8 +95,13 @@ The IR currently consists of four nodes:
 - `InitActors(actor, n)`: Initializes `n` stateful actors of the type `actor`.
 - `ReduceActors(task, actors, objects)`: Invokes `task` on each actor in `actors`. Each task is passed the full set of `objects`.
 
-Each additionally takes arguments to each invocation.
+Each of these nodes includes optional arguments that will be passed in to each Ray task/actor call.
+To build a Ray program using the IR, the programmer first defines Ray actors and tasks in the usual way.
+These actors and tasks can then be passed into constructors of the IR nodes.
+IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency tree for the application.
+This dependency tree can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies and returns the result (i.e., an array of futures).
 
+Below is the implementation of our stream-processing application using the IR:
 ```python
 def main(args):
     reducer_args = [[i] for i in range(args.num_reducers)]
@@ -116,9 +121,6 @@ def main(args):
 
     latencies = ray.get([reducer.get_latencies.remote() for reducer in reducers.eval()])
 ```
-
-A dependency tree is built up by passing references to new IR nodes.
-Subtrees are evaluated when `node.eval()` is called on an IR node, returning the resulting Ray futures.
 
 The IR introduces semantics between groups of submitted tasks, which we can use to make more intelligent scheduling decisions in the backend.
 This semantic model mimics those of BSP systems while using a slightly extended Ray API under the hood.
