@@ -129,7 +129,7 @@ During the first evaluation, actors are placed, the dependendencies are created,
 In subsequent evaluations, only map and reduce tasks will be executed.
 
 We use the semantics between groups of submitted tasks to pass hints to the scheduler for backend placement decisions.
-In this case, each map task in the first group depends on the same object (`dependencies`), map tasks in subsequent groups each depend on a single map task from the previous group, and the reduce task depends on the entire final group of map tasks.
+In this case, each map task in the first group depends on the same object (`dependencies`), map tasks in subsequent groups each depend on a single map task from the previous group (`map_ins`->`shuffle`), and the reduce task depends on the entire final group of map tasks (`shuffled`).
 Details about how this information is leveraged in the scheduler are described in the following section.
 In addition, the semi-lazy evaluation allows for intelligent placement of actors tasks, which is important as stateful actors cannot be moved once they are first initialized.
 In this case, the actor inherits its dependency information from its first submitted reduce task.
