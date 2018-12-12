@@ -127,7 +127,7 @@ Semi-lazy evaluation gives us flexibility to make the actor placement intelligen
 Currently, the `InitActors` inherits its dependency from the first corresponding `ReduceActors` that's evaluated.
 Could do more in the future.
 
-## [stephanie][pseudocode]Scheduler algorithm for group scheduling
+## [stephanie][pseudocode]Group Scheduling
 
 # [stephanie]Evaluation
 - [figure(plot against data size, CDF)]Comparison against vanilla Ray scheduler
