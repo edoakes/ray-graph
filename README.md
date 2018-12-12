@@ -88,11 +88,14 @@ The right balance may depend on the application-specific factors such as task du
 # Design
 
 ## [ed]Intermediate Representation
-IR currently consists of 4 nodes:
-- Broadcast
-- Map
-- InitActors
-- ReduceActors
+To support the target streaming application, we created an intermediate representation that supports MapReduce-style semantics.
+The IR currently consists of four nodes:
+- `Broadcast(task, n)`: Invokes `task` once and returns `n` handles to its result.
+- `Map(task, objects)`: Invokes `task` on each object in `objects`.
+- `InitActors(actor, n)`: Initializes `n` stateful actors of the type `actor`.
+- `ReduceActors(task, actors, objects)`: Invokes `task` on each actor in `actors`. Each task is passed the full set of `objects`.
+
+Each additionally takes arguments to each invocation.
 
 ```python
 def main(args):
