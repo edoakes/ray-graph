@@ -87,7 +87,7 @@ The right balance may depend on the application-specific factors such as task du
 
 # Design
 
-## [ed]Intermediate Representation
+## Intermediate Representation
 To support the target streaming application, we created an intermediate representation that supports MapReduce-style semantics.
 The IR currently consists of four nodes:
 - `Broadcast(task, n)`: Invokes `task` once and returns `n` handles to its result.
