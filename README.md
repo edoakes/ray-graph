@@ -11,7 +11,9 @@ This project is the first step in exploring whether it is possible to provide hi
 To achieve high performance, we expose a scheduling interface for specifying dependencies between logically connected groups of tasks, implement a scheduling policy that uses this information, and introduce a simple intermediate representation with MapReduce semantics that takes advantage of it.
 We focus on scheduling, as it has a high impact on end-to-end application performance, but this idea could be applied to other performance-critical problems, such as garbage collection.
 
-- [ed]stream processing application example
+To demonstrate the performance gains of our system, we implement and evaluate a simple stream-processing application on top of our IR.
+The application emulates receiving an input batch of data every 100MS, then transforming it through a set of stateless map and stateful reduce operations.
+We chose this as a target application because it has a clear semantic model, is performance-sensitive, and is an example of something that might be done by a Ray user but is not what Ray was designed for.
 
 # [stephanie]Background
 ## Ray API
@@ -82,6 +84,7 @@ The right balance may depend on the application-specific factors such as task du
 ## Stream Processing Example
 - [code]
 - [figure]
+
 # Design
 
 ## [ed]Intermediate Representation
