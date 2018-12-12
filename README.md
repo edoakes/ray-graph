@@ -140,6 +140,9 @@ In this case, the actor inherits its dependency information from its first submi
 # [stephanie]Evaluation
 - [figure(plot against data size, CDF)]Comparison against vanilla Ray scheduler
 
+![eval-line](figures/eval-line.png)
+![eval-cdf](figures/eval-cdf.png)
+
 # [ed]Discussion/Future work
 - Static analysis to automatically infer the IR from pure Ray code
   - Recognizing data dependency patterns
