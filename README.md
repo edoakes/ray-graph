@@ -99,7 +99,7 @@ Each of these nodes includes optional arguments to be passed to each Ray task/ac
 To build a Ray program using the IR, the programmer first defines Ray actors and tasks in the usual way.
 These actors and tasks can then be passed into constructors of the IR nodes.
 IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency tree for the application.
-This dependency tree can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies and returns the result (i.e., an array of futures).
+This dependency tree can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies (i.e., a subtree) and returns the result (i.e., an array of futures).
 
 Below is the implementation of our stream-processing application using the IR:
 ```python
