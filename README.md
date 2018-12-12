@@ -9,7 +9,7 @@ Although Ray's low-level API enables it to support a diverse set of distributed 
 For example, Apache Spark leverages constrained, well-defined distributed data abstractions (i.e., RDDs and DataFrames) and operations (e.g., `map`, `join`, etc) to offer high performance and low-cost fault tolerance for MapReduce- and SQL-like computations.
 This project is the first step in exploring whether it is possible to provide high performance for well-defined applications such as MapReduce and stream processing using the low-level Ray API.
 To achieve high performance, we expose a scheduling interface for specifying dependencies between logically connected groups of tasks, implement a scheduling policy that uses this information, and introduce a simple intermediate representation with MapReduce semantics that takes advantage of it.
-We focus on scheduling, as it has a high impact on end-to-end application performance, but the core idea could be applied to other performance-critical problems, such as garbage collection.
+We focus on scheduling, as it has a high impact on end-to-end application performance, but this idea could be applied to other performance-critical problems, such as garbage collection.
 
 - [ed]stream processing application example
 
