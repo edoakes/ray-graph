@@ -60,13 +60,13 @@ ray.get(reducer.get.remote())  # Returns the result of the dot task.
 ```
 
 ## Ray Architecture
-Because the Ray API is relatively low-level, a typical Ray program will often consist of a large number of tasks or actor methods of possibly short (<10ms) duration.
+The Ray API is relatively low-level, so a typical Ray program will often consist of a large number of tasks or actor methods of possibly short (<10ms) duration.
 Therefore, the architecture is designed to scale horizontally while also reducing the computation overhead, in terms of latency per task, as much as possible.
-There are two important architecture features to note for this project: (1) application data management, and (2) distributed scheduling.
+There are two important architecture features to note for this project: (1) application data management and (2) distributed scheduling.
 
 ![Ray multinode architecture](figures/ray-architecture.jpg "Ray multinode architecture")
 
-Because Ray was originally designed for machine learning applications, interoperability with popular Python libraries like [`numpy`](http://www.numpy.org/) is a priority.
+As Ray was originally designed for machine learning applications, interoperability with popular Python libraries like [`numpy`](http://www.numpy.org/) is a priority.
 Ray also aims to make it easier to run Python programs on multicore machines.
 Therefore, Ray stores application data in a shared-memory object store per node using a zero-copy format called [Apache Arrow](https://arrow.apache.org/).
 Worker processes interact with the object store directly to retrieve and store task arguments and return values, respectively, allowing worker processes on the same node to efficiently share common data.
