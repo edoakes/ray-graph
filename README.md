@@ -95,7 +95,7 @@ The IR currently consists of four nodes:
 - `InitActors(actor, n)`: Initializes `n` stateful actors of the type `actor`.
 - `ReduceActors(task, actors, objects)`: Invokes `task` on each actor in `actors`. Each task is passed the full set of `objects`.
 
-Each of these nodes includes optional arguments that will be passed in to each Ray task/actor call.
+Each of these nodes includes optional arguments to be passed to each Ray task/actor call.
 To build a Ray program using the IR, the programmer first defines Ray actors and tasks in the usual way.
 These actors and tasks can then be passed into constructors of the IR nodes.
 IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency tree for the application.
