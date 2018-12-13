@@ -202,7 +202,7 @@ In this case, each map task in the first group depends on the same object (`depe
 To accomplish this, each IR node is assigned a `group_id` and each task within `Map` and `Broadcast` nodes is assigned a `task_id`.
 When a node is evaluated, it recursively evaluates its dependencies and then provides their appropriate IDs as scheduler hints when submitting tasks as follows:
 - `Broadcast(task, n)`: No dependency information is passed.
-- `Map(task, objects)`: If `objects` is a `Broadcast` node, passes its `group_id` as a group dependency. Else, `objects` is a `Map` node and each task is submitted with a single task dependency on the corresponding `task_id` in `objects`.
+- `Map(task, objects)`: If `objects` is a `Broadcast` node, tasks are submitted with its `group_id` as a group dependency. Else, `objects` is a `Map` node and each task is submitted with a single task dependency on the corresponding `task_id` in `objects`.
 - `InitActors(actor, n)`: Does not have an implicit dependency, but instead inherits and passes a group dependency from the `ReduceActors` node that calls it (if it has one).
 - `ReduceActors(task, actors, objects)`: Passes a group dependency on the `group_id` of `objects`.
 
