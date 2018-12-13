@@ -167,8 +167,8 @@ The IR currently consists of four nodes:
 Each of these nodes includes optional arguments to be passed to each Ray task/actor call.
 To build a Ray program using the IR, the programmer first defines Ray actors and tasks in the usual way.
 These actors and tasks can then be passed into constructors of the IR nodes.
-IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency tree for the application.
-This dependency tree can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies (i.e., a subtree) and returns the result (i.e., an array of futures).
+IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency graph for the application.
+This dependency graph can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies (i.e., a subtree) and returns the result (i.e., an array of futures).
 
 Below is the implementation of our stream-processing application using the IR:
 ```python
@@ -193,7 +193,7 @@ def main(args):
 
 In this example, a set of actors is first initialized using `InitActors` and input data is initialized via `Broadcast`.
 The data is then iteratively mapped, shuffled, and reduced on a 100MS cadence to emulate a stream-processing application.
-Note that in each iteration, the dependency tree is explicitly evaluated using the `.eval()` call.
+Note that in each iteration, the dependency graph is explicitly evaluated using the `.eval()` call.
 During the first evaluation, actors are placed, the dependendencies are created, and then the map and reduce tasks are executed.
 In subsequent evaluations, only the map and reduce tasks will be executed.
 
@@ -208,9 +208,10 @@ When a node is evaluated, it recursively evaluates its dependencies and then pro
 
 Stateful actors cannot be moved once they are initialized, so our semi-lazy evaluation allows us to delay the placement of actors from an `InitActors` node until it can inherit dependency information from a `ReduceActors` node.
 
-In order to free `group_id` and `task_id` information from the scheduler, we make use of the Python `__del__` method, which is invoked when an object is garbage collected.
+To free `group_id` and `task_id` information from the scheduler, we make use of the Python `__del__` method, which is invoked when an object is garbage collected.
 When this method is invoked on a node, we make an explicit free call for its `group_id`.
-This is a convenient way of deleting information that is no longer needed from the scheduler as soon as possible, but could also be replaced by an eviction policy.
+Garbage collection occurs when a node is no longer a part of any dependency graph in scope in the driver program.
+This is a convenient way of deleting information that is no longer needed as soon as possible, but could also be replaced by an eviction policy.
 
 ## Group Scheduling
 
