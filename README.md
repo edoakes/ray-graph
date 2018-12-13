@@ -87,7 +87,7 @@ The right balance may depend on the application-specific factors such as task du
 The goal behind this project is to explore the feasibility of supporting a domain-specific application on Ray with good performance competitive with that of a specialized system built for the application.
 The representative example that we use for the project is a streaming (i.e., iterative) map-reduce application, which is generally considered to be well-supported by either a specialized stream processing system, like [Apache Flink](https://flink.apache.org/), or a bulk synchronous parallel-style system, like [Apache Spark](https://spark.apache.org/streaming/), due to the high-throughput data processing requirements.
 
-Because the Ray API is much lower-level than that of these specialized systems, supporting such an application in Ray requires the developer to specify tasks at a much finer granularity.
+The Ray API is much lower-level than those of these specialized systems, so supporting such an application in Ray requires the developer to specify tasks at a much finer granularity.
 Specifically, the processing for each batch of data from the input stream must be expressed as a separate Ray task and parallelism is defined explicitly through the number of tasks in a phase.
 While a higher-level library could easily be developed to hide the details of this batching from the user, this application is still challenging to support from a systems perspective because the latency overhead per task must be as low as possible in order to get comparable performance.
 
@@ -113,7 +113,7 @@ latencies = ray.get(
 )
 ```
 
-Because data processing makes up a significant part of this application, the performance on a cluster depends directly on the scheduling policy used to place tasks.
+Data processing makes up a significant part of this application, resulting in the performance of a cluster depending directly on the scheduling policy used to place tasks.
 When the tasks in this example are very short compared to the amount of input and intermediate data, unnecessary data transfer dominates the job time.
 By examining the computation graph for a single iteration of the application, we can determine an optimal scheduling policy that minimizes unnecessary data transfer to 0, assuming that the ratio between task duration to data transfer is sufficiently low.
 
@@ -194,7 +194,7 @@ def main(args):
 In this example, a set of actors is first initialized using `InitActors` and input data is initialized via `Broadcast`.
 The data is then iteratively mapped, shuffled, and reduced on a 100MS cadence to emulate a stream-processing application.
 Note that in each iteration, the dependency graph is explicitly evaluated using the `.eval()` call.
-During the first evaluation, actors are placed, the dependendencies are created, and then the map and reduce tasks are executed.
+During the first evaluation, actors are placed, the dependencies are created, and then the map and reduce tasks are executed.
 In subsequent evaluations, only the map and reduce tasks will be executed.
 
 We use the semantics between groups of submitted tasks to pass hints to the scheduler for backend placement decisions.
@@ -251,9 +251,24 @@ This tail requires further investigation and is likely due to performance issues
 
 ![eval-cdf](figures/eval-cdf.png)
 
-# [ed]Discussion/Future work
-- Static analysis to automatically infer the IR from pure Ray code
-  - Recognizing data dependency patterns
-  - Recognizing evaluation points
-- Extending the IR to support other data dependency patterns
-- Designing an IR to support other features, e.g., garbage collection
+# Future work
+
+Although we have found that programming directly in our created IR is surprisingly intuitive, it still imposes a burden on the programmer on top of learning the vanilla Ray API.
+One future direction (and the original goal of our project) is to use static analysis techniques to automatically infer an IR representation from pure Ray code.
+The primary challenge in this is recognizing the correct data dependency patterns between invoked Ray tasks.
+However, from our anecdotal experience digging through Ray programs, it seems that many of them are structured to make these patterns evident (e.g., using list comprehensions when submitting a group of tasks).
+This suggests that at least supporting automatic scheduling hints for a subset of possible programs is possible with a reasonable amount of effort.
+In addition to inferring data dependencies, we would also need to recognize and insert evaluation points for our semi-lazy evaluation.
+A simple policy for this, which should cover a large spectrum of programs, is just to evaluate whenever the program accesses the result (i.e., calls `.get()` on a future).
+While automatically improving performance of programs in this way is compelling, it could also make programming Ray more opaque to unfamiliar users, so careful consideration would need to be made when deciding if this should be a part of mainline Ray.
+
+In addition to inferring the IR that we presented in this work, we would also like to expand the scope of the work to additional data dependency patterns.
+While MapReduce style computation is pervasive in distributed systems, it does not cover the full scope of applications that use Ray.
+In particular, Ray is used most often for end-to-end processing of emerging ML (especially RL) workloads, which are not as well-defined as the tried-and-true MapReduce.
+The first step in pursuing this would be a large-scale user study to understand other structured computation patterns in Ray programs.
+
+Finally, while the focus in this project was on improving scheduling as a means to improved end-to-end latency, there are also other parts of Ray where higher-level program semantics could be helpful.
+For example, information from the frontend program could help with garbage collection of objects.
+Currently, this is performed using a simple LRU policy, but this is suboptimal and sometimes occurs in purging objects that are still needed.
+Prematurely garbage collecting objects incurs a significant performance penalty as they must be recreated using lineage.
+By providing hints from the frontend, objects that are known to no longer be needed in the program could be evicted, making room for more objects that could otherwise have been prematurely garbage collected.
