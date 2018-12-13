@@ -211,8 +211,7 @@ Each task is also assumed to belong to a group.
 
 The main intuition behind the scheduling policy is to pack tasks dependent on the same group as much as possible, and to colocate tasks that depend on a single other task.
 Otherwise, the task has no data dependency constraints and it is acceptable to place the task anywhere in the cluster.
-This information is sufficient to implement the manual policy described in [Background](#stream-processing), using the pseudocode found [here](./scheduler_pseudocode.py).
-
+The particular details can be found in this [pseudocode](./scheduler_pseudocode.py), which matches the optimal policy described in [Background](#stream-processing).
 
 # [stephanie]Evaluation
 - [figure(plot against data size, CDF)]Comparison against vanilla Ray scheduler
