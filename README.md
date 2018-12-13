@@ -15,7 +15,7 @@ To demonstrate the performance gains realized by group scheduling, we implement 
 The application emulates receiving an input batch of data every 100MS, then transforming it through a set of stateless map and stateful reduce operations.
 We chose this as a target application because it has a clear semantic model, is performance-sensitive, and is an example of something that might be done by a Ray user but is not what Ray was designed for.
 
-# [stephanie]Background
+# Background
 ## Ray API
 The Ray API exposes two main primitives: *tasks* to represent functional programming and *actors* to represent object-oriented programming.
 A task may be specified and created as follows:
@@ -81,9 +81,77 @@ For instance, since fetching an object incurs some delay, it is often beneficial
 However, achieving the best performance overall for certain workloads may require a balance between colocating tasks and global load-balancing, to account for resource capacity.
 The right balance may depend on the application-specific factors such as task duration, data size, and task load.
 
-## Stream Processing Example
-- [code]
-- [figure]
+## Stream Processing
+
+### Example
+The goal behind this project is to explore the feasibility of supporting a domain-specific application on Ray with good performance competitive with that of a specialized system built for the application.
+The representative example that we use for the project is a streaming (i.e., iterative) map-reduce application, which is generally considered to be well-supported by either a specialized stream processing system, like [Apache Flink](https://flink.apache.org/), or a bulk synchronous parallel-style system, like [Apache Spark](https://spark.apache.org/streaming/), due to the high-throughput data processing requirements.
+
+Because the Ray API is much lower-level than that of these specialized systems, supporting such an application in Ray requires the developer to specify tasks at a much finer granularity.
+Specifically, the processing for each batch of data from the input stream must be expressed as a separate Ray task and parallelism is defined explicitly through the number of tasks in a phase.
+While a higher-level library could easily be developed to hide the details of this batching from the user, this application is still challenging to support from a systems perspective because the latency overhead per task must be as low as possible in order to get comparable performance.
+
+We can see this in the example below, which shows how one would write a stream processing application in Ray.
+This application creates an input stream that produces batches of data every 100ms, performs some data processing in parallel (*map*) over these batches, then aggregates (*reduce*) the final results.
+The map phase is implemented by submitting an explicit number of `map_step` tasks equal to the desired parallelism.
+The reduce phase is implemented by starting a number of `Reducer` actors at the beginning of the job, then calling methods on the actors that depend on the results of the map phase.
+A new map and reduce phase is started every time a new batch of input data arrives.
+```python
+reducers = [Reducer.remote(i) for i in range(num_reducers)]
+dependencies = generate_dependencies.remote(data_size)
+
+for _ in range(num_iterations):
+    # Here, parellelism would generally be set to something like num_nodes * NUM_CPUS_PER_NODE.
+    map_ins = [map_step.remote(dependencies) for _ in range(parallelism)]
+    shuffled = [shuffle.remote(len(reducers), map_in) for map_in in map_ins]
+    [reducer.reduce.remote(*shuffled) for reducer in reducers]
+    time.sleep(0.1)  # Simulates waiting for the next batch of data.
+
+# Collect the final results.
+latencies = ray.get(
+  [reducer.get_result.remote() for reducer in reducers]
+)
+```
+
+Because data processing makes up a significant part of this application, the performance on a cluster depends directly on the scheduling policy used to place tasks.
+When the tasks in this example are very short compared to the amount of input and intermediate data, unnecessary data transfer dominates the job time.
+By examining the computation graph for a single iteration of the application, we can determine an optimal scheduling policy that minimizes unnecessary data transfer to 0, assuming that the ratio between task duration to data transfer is sufficiently low.
+
+![MapReduce in Ray](figures/ray-mapreduce.jpg "MapReduce in Ray")
+
+In the above figure, we show tasks with rounded squares and actor methods with circles.
+Data dependencies between tasks are represented by the black arrows, and stateful dependencies between subsequent actor methods are represented with the gray arrows.
+There are two common patterns of data transfer between tasks in this figure.
+
+First, using the first `Map` phase as an example, the optimal scheduling policy should first colocate individual tasks onto the same node as the single `Broadcast` task.
+Then, the `Broadcast` task's outputs can be used directly by the `Map` tasks without data transfer.
+Once the resources on that first node are exhausted, the scheduling policy should pick another node on which to pack `Map` tasks, and so on.
+Spilling the load to other nodes is necessary to maximize parallelism.
+
+Second, using the second `Map` phase as an example, the optimal scheduling policy should choose to colocate with tasks from the previous phase as much as possible.
+In this part of the computation, each `Map` task depends only on a task in the previous phase.
+Therefore, assuming that resource constraints are still met, colocating each task with the task requires zero data transfer.
+
+### Challenges
+There are two difficulties in implementing the above scheduling policy directly in the Ray backend, without any knowledge from the application.
+First, Ray tasks are submitted individually and executed eagerly.
+In contrast, the above scheduling policies operate over *groups* of tasks and depend on placement information about past task groups.
+In order to implement the above scheduling policy without any changes to the API, the Ray scheduler would have to buffer placement decisions about individual tasks.
+This could produce high task overhead and determining the optimal time for the buffer to be flushed would be difficult.
+
+Second, actors in Ray cannot be moved once they have been placed.
+This is because actors have state and therefore cannot be easily moved to a different process or node.
+However, when actors are first created, it is usually not clear yet what their data dependencies are, since these are not specified until methods on the actor are invoked.
+In order to place actors to minimize data transfer, the Ray backend would have to delay actor creation until it was clear exactly where the actors should be placed.
+
+The current workaround for Ray users is to explicitly define placement decisions for each task by labelling each task invocation with the node where it should be executed.
+However, this solution is awkward and brittle.
+The user must manually specify each task's placement decision, and the solution does not work if the cluster configuration changes (e.g., due to node failure).
+
+Our proposal is to expose a higher-level intermediate representation (IR) that can be lazily evaluated to submit task *groups* to the Ray scheduler.
+While each Ray task is still submitted individually when the IR is evaluated, this method allows us to attach sufficient but minimal information to each task so that the scheduler can make an optimal placement decision.
+In addition, the lazy evaluation allows us to defer actor creation in the frontend until a method has been submitted on the actor.
+We envision this IR being used by developers of Ray frontend libraries, such as for stream processing or data processing.
 
 # Design
 
