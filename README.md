@@ -127,6 +127,7 @@ First, using the first `Map` phase as an example, the optimal scheduling policy 
 Then, the `Broadcast` task's outputs can be used directly by the `Map` tasks without data transfer.
 Once the resources on that first node are exhausted, the scheduling policy should pick another node on which to pack `Map` tasks, and so on.
 Spilling the load to other nodes is necessary to maximize parallelism.
+The same strategy should be used to pack the `Reducer` actors together, since all reducers share the same input data, the outputs from the second `Map` phase.
 
 Second, using the second `Map` phase as an example, the optimal scheduling policy should choose to colocate with tasks from the previous phase as much as possible.
 In this part of the computation, each `Map` task depends only on a task in the previous phase.
@@ -213,10 +214,32 @@ The main intuition behind the scheduling policy is to pack tasks dependent on th
 Otherwise, the task has no data dependency constraints and it is acceptable to place the task anywhere in the cluster.
 The particular details can be found in this [pseudocode](./scheduler_pseudocode.py), which matches the optimal policy described in [Background](#stream-processing).
 
-# [stephanie]Evaluation
-- [figure(plot against data size, CDF)]Comparison against vanilla Ray scheduler
+# Evaluation
+
+For our evaluation, we ran experiments on a 5-node cluster of AWS EC2 m5.xlarge machines using a [modified version](https://github.com/stephanie-wang/ray/tree/cs294-scheduling) of Ray v0.6 that includes the described scheduler changes.
+We compare against unmodified Ray, which places tasks by finding a feasible set of nodes according to task resource constraints, then uses a random scheduling policy to pick the node placement.
+It does not consider data locality at all, and the randomized policy makes it prone to bad load-balancing decisions.
+We run every experiment for 100s and throw out results from the first 25s to account for warmup time.
+
+In the following plot, we compare the average end-to-end latency of all data in the input stream, while varying the data size produced by each task in the map phase.
+The inputs to the reduce phase are aggregated locally first, and therefore have approximately the same size for all experiments.
+To measure the latency, we measure the difference between each datapoint's ingest time and the time that it reaches a reducer.
+
+Running unmodified Ray at the lowest data size gets >2x better latency than Ray with group scheduling.
+This is potentially because unnecessary data transfer does not matter when the data size is so small, and because the tasks are short enough that it is actually not beneficial to load-balance them across the cluster.
+However, latencies get exponentially worse as the data size increases.
+This is probably because the cost of unnecessary data transfer increases and the effect from poor load-balancing is exacerbated as there is more data to process.
+
+On the other hand, Ray with group scheduling gets a constant average latency of <100ms, no matter the data size.
+This is because it avoids the unnecessary data transfer during the map phase, by colocating each map task with its inputs.
 
 ![eval-line](figures/eval-line.png)
+
+In the following plot, we show a CDF of all latency datapoints for a particular data size (~15MB).
+We can see that unmodified Ray has high variance, likely due to its randomized scheduling policy.
+Ray with group scheduling has much lower variance, although it still has a significant tail that reaches over 500ms, compared to the mean of <100ms.
+This tail requires further investigation and is likely due to performance issues in the general Ray backend independent of scheduling.
+
 ![eval-cdf](figures/eval-cdf.png)
 
 # [ed]Discussion/Future work
