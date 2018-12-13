@@ -195,14 +195,22 @@ In this example, a set of actors is first initialized using `InitActors` and inp
 The data is then iteratively mapped, shuffled, and reduced on a 100MS cadence to emulate a stream-processing application.
 Note that in each iteration, the dependency tree is explicitly evaluated using the `.eval()` call.
 During the first evaluation, actors are placed, the dependendencies are created, and then the map and reduce tasks are executed.
-In subsequent evaluations, only map and reduce tasks will be executed.
+In subsequent evaluations, only the map and reduce tasks will be executed.
 
 We use the semantics between groups of submitted tasks to pass hints to the scheduler for backend placement decisions.
 In this case, each map task in the first group depends on the same object (`dependencies`), map tasks in subsequent groups each depend on a single map task from the previous group (`map_ins`->`shuffle`), and the reduce task depends on the entire final group of map tasks (`shuffled`).
-Details about how this information is leveraged in the scheduler are described in the following section.
-In addition, the semi-lazy evaluation allows for intelligent placement of actors tasks, which is important as stateful actors cannot be moved once they are first initialized.
-In this case, the actor inherits its dependency information from its first submitted reduce task.
+To accomplish this, each IR node is assigned a `group_id` and each task within `Map` and `Broadcast` nodes is assigned a `task_id`.
+When a node is evaluated, it recursively evaluates its dependencies and then provides their appropriate IDs as scheduler hints when submitting tasks as follows:
+- `Broadcast(task, n)`: No dependency information is passed.
+- `Map(task, objects)`: If `objects` is a `Broadcast` node, passes its `group_id` as a group dependency. Else, `objects` is a `Map` node and each task is submitted with a single task dependency on the corresponding `task_id` in `objects`.
+- `InitActors(actor, n)`: Does not have an implicit dependency, but instead inherits and passes a group dependency from the `ReduceActors` node that calls it (if it has one).
+- `ReduceActors(task, actors, objects)`: Passes a group dependency on the `group_id` of `objects`.
 
+Stateful actors cannot be moved once they are initialized, so our semi-lazy evaluation allows us to delay the placement of actors from an `InitActors` node until it can inherit dependency information from a `ReduceActors` node.
+
+In order to free `group_id` and `task_id` information from the scheduler, we make use of the Python `__del__` method, which is invoked when an object is garbage collected.
+When this method is invoked on a node, we make an explicit free call for its `group_id`.
+This is a convenient way of deleting information that is no longer needed from the scheduler as soon as possible, but could also be replaced by an eviction policy.
 
 ## Group Scheduling
 
