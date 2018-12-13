@@ -3,24 +3,31 @@ cluster_resources = {
         node_id: int,
         }
 
+# The current task load on each node. This information is updated with Ray
+# heartbeats and may be stale.
 cluster_load = {
         node_id: int,
         }
 
+# History of which node tasks have been placed on. Each task is
+# garbage-collected when its corresponding group is freed.
+task_schedule = {
+        task_id: node_id,
+        }
 
+# History of which nodes a group of tasks have been placed on. Each group is
+# garbage-collected when the frontend notifies the backend that the group can
+# be freed.
 group_schedule = {
         group_id: {
             node_id: int,
             },
         }
 
+# History of which tasks belong in which groups. This is used to
+# garbage-collect task_schedule.
 groups = {
         group_id: [task_id],
-        }
-
-
-task_schedule = {
-        task_id: node_id,
         }
 
 
@@ -43,7 +50,7 @@ def get_placement_by_group(group_id, group_dependency):
     return None
 
 
-def submit_task(task, group_id=None, task_dependency=None, group_dependency=None):
+def place_task(task, group_id=None, task_dependency=None, group_dependency=None):
     assert not (task_dependency and group_dependency)
     node_id = None
     if task_dependency:

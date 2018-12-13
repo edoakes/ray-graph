@@ -203,7 +203,16 @@ In addition, the semi-lazy evaluation allows for intelligent placement of actors
 In this case, the actor inherits its dependency information from its first submitted reduce task.
 
 
-## [stephanie][pseudocode]Group Scheduling
+## Group Scheduling
+
+We modify the Ray scheduler to leverage each task's group information.
+Each task is assumed to either have a group dependency, meaning it depends on all tasks from a given group, or a task dependency, meaning it depends on one other task.
+Each task is also assumed to belong to a group.
+
+The main intuition behind the scheduling policy is to pack tasks dependent on the same group as much as possible, and to colocate tasks that depend on a single other task.
+Otherwise, the task has no data dependency constraints and it is acceptable to place the task anywhere in the cluster.
+This information is sufficient to implement the manual policy described in [Background](#stream-processing), using the pseudocode found [here](./scheduler_pseudocode.py).
+
 
 # [stephanie]Evaluation
 - [figure(plot against data size, CDF)]Comparison against vanilla Ray scheduler
