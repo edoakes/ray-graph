@@ -1,6 +1,6 @@
 # Introduction
 Machine learning systems in production may require a diverse array of applications, requiring everything from hyperparameter search to train a model to stream processing to ingest data.
-In the past, specialized systems have been built for each of these individual applications, leaving the burden of integrating these systems on the user, with a potentially prohibitive performance cost.
+In the past, specialized systems have been built for each of these individual applications, leaving the burden of integrating these systems on the user.
 [Ray](https://github.com/ray-project/ray) is a system that makes it easy to develop and deploy applications in machine learning by exposing higher-level Python libraries for traditionally disparate applications, all supported by a common distributed framework.
 Ray does this by exposing a relatively low-level API that is flexible enough to support a variety of computation patterns.
 This API allows the user to define *tasks*, which represent an asynchronous and possibly remote function invocation, and *actors*, which represent some state bound to a process.
@@ -119,7 +119,7 @@ By examining the computation graph for a single iteration of the application, we
 
 ![MapReduce in Ray](figures/ray-mapreduce.jpg "MapReduce in Ray")
 
-In the above figure, we show tasks with rounded squares and actor methods with circles.
+In the above figure, we represent tasks with rounded squares and actor methods with circles.
 Data dependencies between tasks are represented by the black arrows, and stateful dependencies between subsequent actor methods are represented with the gray arrows.
 There are two common patterns of data transfer between tasks in this figure.
 
@@ -138,7 +138,7 @@ There are two difficulties in implementing the above scheduling policy directly 
 First, Ray tasks are submitted individually and executed eagerly.
 In contrast, the above scheduling policies operate over *groups* of tasks and depend on placement information about past task groups.
 In order to implement the above scheduling policy without any changes to the API, the Ray scheduler would have to buffer placement decisions about individual tasks.
-This could produce high task overhead and determining the optimal time for the buffer to be flushed would be difficult.
+This could produce high per-task overhead and it would be difficult for the schedluer to automatically determine the optimal time for the buffer to be flushed.
 
 Second, actors in Ray cannot be moved once they have been placed.
 This is because actors have state and therefore cannot be easily moved to a different process or node.
@@ -168,7 +168,7 @@ Each of these nodes includes optional arguments to be passed to each Ray task/ac
 To build a Ray program using the IR, the programmer first defines Ray actors and tasks in the usual way.
 These actors and tasks can then be passed into constructors of the IR nodes.
 IR nodes are subsequently passed into the constructors of other IR nodes, building up a dependency graph for the application.
-This dependency graph can then be "semi-lazily" by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies (i.e., a subtree) and returns the result (i.e., an array of futures).
+This dependency graph can then be "semi-lazily" evaluated by making a call to the `.eval()` method of a node, which evaluates all necessary dependencies (i.e., a subtree) and returns the result (i.e., an array of futures).
 
 Below is the implementation of our stream-processing application using the IR:
 ```python
@@ -200,6 +200,9 @@ In subsequent evaluations, only the map and reduce tasks will be executed.
 We use the semantics between groups of submitted tasks to pass hints to the scheduler for backend placement decisions.
 In this case, each map task in the first group depends on the same object (`dependencies`), map tasks in subsequent groups each depend on a single map task from the previous group (`map_ins`->`shuffle`), and the reduce task depends on the entire final group of map tasks (`shuffled`).
 To accomplish this, each IR node is assigned a `group_id` and each task within `Map` and `Broadcast` nodes is assigned a `task_id`.
+This results in the following groups for our stream processing example:
+![Ray group scheduling](figures/ray-group-scheduling.png "Ray group scheduling")
+
 When a node is evaluated, it recursively evaluates its dependencies and then provides their appropriate IDs as scheduler hints when submitting tasks as follows:
 - `Broadcast(task, n)`: No dependency information is passed.
 - `Map(task, objects)`: If `objects` is a `Broadcast` node, tasks are submitted with its `group_id` as a group dependency. Else, `objects` is a `Map` node and each task is submitted with a single task dependency on the corresponding `task_id` in `objects`.
@@ -207,11 +210,13 @@ When a node is evaluated, it recursively evaluates its dependencies and then pro
 - `ReduceActors(task, actors, objects)`: Passes a group dependency on the `group_id` of `objects`.
 
 Stateful actors cannot be moved once they are initialized, so our semi-lazy evaluation allows us to delay the placement of actors from an `InitActors` node until it can inherit dependency information from a `ReduceActors` node.
+Dependency inheritance can be implemented more generally by propagating dependency information to any IR nodes that have no dependencies, and therefore no placement constraints.
+In general, if `A` depends on `B` and `C`, and only `B` has some placement constraint, then that constraint can be propagated to both `A` and `C`.
 
 To free `group_id` and `task_id` information from the scheduler, we make use of the Python `__del__` method, which is invoked when an object is garbage collected.
 When this method is invoked on a node, we make an explicit free call for its `group_id`.
 Garbage collection occurs when a node is no longer a part of any dependency graph in scope in the driver program.
-This is a convenient way of deleting information that is no longer needed as soon as possible, but could also be replaced by an eviction policy.
+This is a convenient way of deleting information that is no longer needed as soon as possible, but could also be improved with a more intelligent eviction policy (e.g., using static analysis).
 
 ## Group Scheduling
 
@@ -253,22 +258,34 @@ This tail requires further investigation and is likely due to performance issues
 
 # Future work
 
-Although we have found that programming directly in our created IR is surprisingly intuitive, it still imposes a burden on the programmer on top of learning the vanilla Ray API.
+Although we have found that programming directly in our created IR is intuitive for this example, it still imposes a burden on the programmer compared to directly using the vanilla Ray API.
+While automatically improving performance of programs is compelling, using an IR could also make programming Ray more opaque to unfamiliar users, so careful consideration would need to be made when deciding if this should be a integrated into Ray.
+
 One future direction (and the original goal of our project) is to use static analysis techniques to automatically infer an IR representation from pure Ray code.
 The primary challenge in this is recognizing the correct data dependency patterns between invoked Ray tasks.
 However, from our anecdotal experience digging through Ray programs, it seems that many of them are structured to make these patterns evident (e.g., using list comprehensions when submitting a group of tasks).
 This suggests that at least supporting automatic scheduling hints for a subset of possible programs is possible with a reasonable amount of effort.
+
 In addition to inferring data dependencies, we would also need to recognize and insert evaluation points for our semi-lazy evaluation.
-A simple policy for this, which should cover a large spectrum of programs, is just to evaluate whenever the program accesses the result (i.e., calls `.get()` on a future).
-While automatically improving performance of programs in this way is compelling, it could also make programming Ray more opaque to unfamiliar users, so careful consideration would need to be made when deciding if this should be a part of mainline Ray.
+A simple policy for this, which should cover a large spectrum of programs, is just to evaluate whenever the program accesses the result (i.e., calls `ray.get()` on a future).
+This could work well for implementing higher-level libraries, which would generally have a constrained API with explicit read versus write operations, but not for a general application.
+In fact, this does not work for the stream processing example shown in this project, which submits tasks every 100ms but only retrieves the results at the very end of the job.
 
-In addition to inferring the IR that we presented in this work, we would also like to expand the scope of the work to additional data dependency patterns.
-While MapReduce style computation is pervasive in distributed systems, it does not cover the full scope of applications that use Ray.
-In particular, Ray is used most often for end-to-end processing of emerging ML (especially RL) workloads, which are not as well-defined as the tried-and-true MapReduce.
-The first step in pursuing this would be a large-scale user study to understand other structured computation patterns in Ray programs.
+We would also like to expand the scope of the work to additional data dependency patterns.
+While map-reduce style computation is pervasive in distributed systems, it does not cover the full scope of applications that use Ray.
+In particular, Ray is used most often for end-to-end processing of machine learning (especially reinforcement learning) workloads, which cannot be expressed easily using only map-reduce computation, since there are no primitives for asynchronous processing.
+The first step in pursuing this would be a user study to understand other structured computation patterns in Ray programs.
 
-Finally, while the focus in this project was on improving scheduling as a means to improved end-to-end latency, there are also other parts of Ray where higher-level program semantics could be helpful.
-For example, information from the frontend program could help with garbage collection of objects.
-Currently, this is performed using a simple LRU policy, but this is suboptimal and sometimes occurs in purging objects that are still needed.
+Finally, while the focus in this project was on improving scheduling as a means to improve end-to-end latency, there are also other parts of Ray where higher-level program semantics could be helpful.
+For example, information from the frontend program could help with garbage collection of application data objects.
+Currently, this is performed using a simple local LRU policy, but this is suboptimal and sometimes results in purging objects that are still needed.
 Prematurely garbage collecting objects incurs a significant performance penalty as they must be recreated using lineage.
-By providing hints from the frontend, objects that are known to no longer be needed in the program could be evicted, making room for more objects that could otherwise have been prematurely garbage collected.
+By providing hints from the frontend, the policy could make more intelligent decisions about which objects are still needed and which can be evicted.
+While this could be be done with a purely dynamic approach, static analysis could be helpful in determining when live object references are in fact no longer needed.
+
+A related problem is application checkpointing.
+In the case of node failure, Ray recovers lost objects by depending on lineage to determine which tasks to replay.
+However, for long-running applications, the lineage could become so large that it is impossible (or at least very expensive) to recover in this way.
+Therefore, it is necessary for the application to take, and for actors to be able to recover from, periodic checkpoints, in order to bound recovery time.
+Because the application state is inherently distributed, it can be difficult for a non-expert user to determine how to do this correctly.
+Therefore, higher-level semantics and/or static analysis could be helpful in automatically guiding distributed checkpoints.
